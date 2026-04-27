@@ -5,10 +5,12 @@ Local web dev server for Linux. PHP + static sites, per-site PHP versions, autom
 ## Install
 
 ```bash
-./install.sh
+bash install.sh
 ```
 
-Builds and symlinks `./hostr` into `~/.local/bin/`. Re-running picks up the latest build because the symlink doesn't move.
+Builds and symlinks `./hostr` into `~/.local/bin/`. Run it as yourself — no `sudo`. Re-running picks up the latest build because the symlink doesn't move. After the first run, `hostr <command>` works from any directory.
+
+If `~/.local/bin` isn't on your `$PATH`, the script tells you and prints the line to add to your shell rc.
 
 ## Quick start
 
@@ -28,7 +30,8 @@ hostr cutover --rollback        # reverse it
 ## Daily commands
 
 ```
-hostr status                    # all sites + resolved settings (kind, PHP, secure, docroot)
+hostr tui                       # interactive dashboard (see Keys below)
+hostr status                    # flat table — all sites + resolved settings
 hostr open [name]               # xdg-open https://<name>.test (port-aware)
 hostr logs <name>               # tail Caddy access + PHP errors for one site
 hostr doctor [--probe]          # health check; --probe also HEADs every site
@@ -37,7 +40,44 @@ hostr restart [unit]            # restart all hostr services or one named unit
 
 hostr php list / use / rm
 hostr park / unpark / link / unlink / isolate / secure
+hostr proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 ```
+
+## Proxying dev servers
+
+For Vite, Next, Astro, Rails, etc. — anything you'd normally hit at `localhost:<port>`:
+
+```bash
+npm run dev                     # Vite on :5173
+hostr proxy myapp 5173          # myapp.test → 127.0.0.1:5173, with HTTPS + WebSockets
+```
+
+Targets accept `5173` (assumed `127.0.0.1:5173`), `:5173`, or `host:5173`. Caddy auto-handles
+WebSocket upgrades, so HMR works.
+
+## TUI
+
+`hostr tui` opens a Bubble Tea dashboard with subdomain grouping, live HTTP probes, filters, and per-site actions.
+
+| key | action |
+|---|---|
+| `j`/`k` or ↑/↓ | navigate |
+| `g` / `G` | top / bottom |
+| `pgup` / `pgdn` | page |
+| `o` / Enter | open the highlighted site in the browser |
+| `l` | tail logs for the highlighted site (Caddy access + PHP errors) |
+| `r` | re-probe all sites |
+| `/` | name search; type, Enter to lock, Esc to clear |
+| `s` | cycle HTTPS filter: all → secure → insecure |
+| `t` | cycle kind filter: all → php → static → proxy |
+| `c` | cycle status filter: all → 2xx → 3xx → 4xx → 5xx → err → pending |
+| `m` | toggle missing-docroot only |
+| `x` | clear all filters |
+| `q` / Ctrl-C | quit |
+
+Layout reflows with the terminal — narrow widths drop KIND, LAT, DOCROOT in priority order. Wide terminals expand NAME and DOCROOT.
+
+Subdomains (`api.affiliate`, `app.affiliate`, …) group under their parent (`affiliate.test`) with tree-style indentation. Missing docroots get a red `✗` prefix.
 
 ## Layout
 

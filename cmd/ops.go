@@ -18,6 +18,7 @@ import (
 	"github.com/scottzirkel/hostr/internal/php"
 	"github.com/scottzirkel/hostr/internal/site"
 	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/hostr/internal/tui"
 )
 
 // --- reload ---------------------------------------------------------------
@@ -383,9 +384,20 @@ func queryHostrDNS(name string) string {
 
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
-	Short: "Interactive dashboard (not yet implemented)",
+	Short: "Interactive dashboard — site list with live HTTP status; ↑/↓ navigate, o open, r refresh, q quit",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return fmt.Errorf("not yet implemented")
+		return tui.Run()
+	},
+}
+
+var tuiRenderCmd = &cobra.Command{
+	Use:    "tui-render",
+	Short:  "Render one TUI frame to stdout (debug — no event loop, no alt screen)",
+	Hidden: true,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		fmt.Print(tui.DebugRender(120))
+		fmt.Println()
+		return nil
 	},
 }
 
@@ -393,5 +405,5 @@ func init() {
 	logsCmd.Flags().IntVarP(&logsLines, "lines", "n", 50, "show this many trailing lines before following")
 	logsCmd.Flags().BoolVar(&logsPHP, "no-php", false, "exclude php-fpm error log")
 	doctorCmd.Flags().BoolVar(&doctorProbe, "probe", false, "also issue a HEAD against every site")
-	rootCmd.AddCommand(reloadCmd, restartCmd, statusCmd, openCmd, logsCmd, doctorCmd, tuiCmd)
+	rootCmd.AddCommand(reloadCmd, restartCmd, statusCmd, openCmd, logsCmd, doctorCmd, tuiCmd, tuiRenderCmd)
 }

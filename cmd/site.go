@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -107,6 +108,35 @@ var isolateCmd = &cobra.Command{
 	},
 }
 
+var proxyCmd = &cobra.Command{
+	Use:   "proxy <name> <target>",
+	Short: "Reverse-proxy <name>.test to a local target (e.g. 5173, :5173, or 127.0.0.1:5173)",
+	Long: `Adds or updates a link that reverse-proxies <name>.test to a local backend.
+Useful for Vite, Next, Astro, Rails, or anything you'd otherwise hit at localhost:<port>.
+Caddy auto-handles WebSocket upgrades, so HMR works.`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(_ *cobra.Command, args []string) error {
+		name := strings.TrimSuffix(args[0], ".test")
+		target := normalizeProxyTarget(args[1])
+		s, err := site.Load()
+		if err != nil {
+			return err
+		}
+		site.AddLink(s, site.Link{Name: name, Target: target, Secure: true})
+		return commitAndReload(s, fmt.Sprintf("proxy %s.test → %s", name, target))
+	},
+}
+
+func normalizeProxyTarget(t string) string {
+	if !strings.Contains(t, ":") {
+		return "127.0.0.1:" + t
+	}
+	if strings.HasPrefix(t, ":") {
+		return "127.0.0.1" + t
+	}
+	return t
+}
+
 var secureCmd = &cobra.Command{
 	Use:   "secure <name>",
 	Short: "Toggle HTTPS for a linked site (default: on)",
@@ -131,7 +161,7 @@ var secureCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(parkCmd, unparkCmd, linkCmd, unlinkCmd, isolateCmd, secureCmd)
+	rootCmd.AddCommand(parkCmd, unparkCmd, linkCmd, unlinkCmd, isolateCmd, secureCmd, proxyCmd)
 }
 
 func resolveDir(args []string) (string, error) {
