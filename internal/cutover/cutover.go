@@ -34,7 +34,7 @@ func Detect() Phase {
 }
 
 func detectPhase(resolvOK, perLink, caddyOnStd, caddyOnAlt bool) Phase {
-	if !resolvOK && !perLink && caddyOnAlt {
+	if !perLink && !caddyOnStd && caddyOnAlt {
 		return PhaseOne
 	}
 	if resolvOK && perLink && caddyOnStd {

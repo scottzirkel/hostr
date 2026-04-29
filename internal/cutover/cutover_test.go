@@ -20,6 +20,12 @@ func TestDetectPhase(t *testing.T) {
 			want:       PhaseOne,
 		},
 		{
+			name:       "phase one can already use systemd resolved",
+			resolvOK:   true,
+			caddyOnAlt: true,
+			want:       PhaseOne,
+		},
+		{
 			name:       "phase two after cutover",
 			resolvOK:   true,
 			perLink:    true,
