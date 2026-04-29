@@ -23,7 +23,7 @@ trying to become a full Herd replacement.
   - Continue expanding tests for site detection, custom roots, linked sites, parked dirs,
     proxies, secure toggle, and missing docroots.
 - **Valet migration reliability**
-  - Cover parked dirs, linked dirs, Nginx custom roots, isolated PHP versions,
+  - Continue covering parked dirs, linked dirs, Nginx custom roots, isolated PHP versions,
     and missing/weird Valet config.
 - **Supportability**
   - Review error messages for service failures, DNS failures, cert trust

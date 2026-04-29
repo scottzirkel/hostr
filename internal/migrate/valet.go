@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/scottzirkel/hostr/internal/site"
 )
@@ -70,12 +71,39 @@ func BuildPlan(cfg *ValetConfig) (*Plan, error) {
 			Path:   target,
 			Secure: hasCert(e.Name()),
 		}
+		if root := nginxRoot(e.Name(), target); root != "" {
+			l.Root = root
+		}
 		if v := isolatedPHP(e.Name()); v != "" {
 			l.PHP = v
 		}
 		p.Links = append(p.Links, l)
 	}
 	return p, nil
+}
+
+// Capture the first Nginx root directive. If it points inside the linked site,
+// store it as a relative hostr --root override so the state stays portable.
+var nginxRootRE = regexp.MustCompile(`(?m)^\s*root\s+(.+?);`)
+
+func nginxRoot(name, sitePath string) string {
+	data, err := os.ReadFile(valetPath("Nginx", name+".test"))
+	if err != nil {
+		return ""
+	}
+	m := nginxRootRE.FindStringSubmatch(string(data))
+	if m == nil {
+		return ""
+	}
+	root := trimNginxValue(m[1])
+	if root == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(sitePath, root)
+	if err == nil && rel != "." && rel != ".." && !filepath.IsAbs(rel) && !isParentRel(rel) {
+		return rel
+	}
+	return root
 }
 
 func hasCert(name string) bool {
@@ -101,4 +129,14 @@ func isolatedPHP(name string) string {
 		return string(v[0]) + "." + string(v[1])
 	}
 	return v
+}
+
+func trimNginxValue(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.Trim(v, `"'`)
+	return v
+}
+
+func isParentRel(rel string) bool {
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
