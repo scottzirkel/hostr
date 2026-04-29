@@ -114,6 +114,56 @@ func TestNginxRootKeepsExternalRootsAbsolute(t *testing.T) {
 	}
 }
 
+func TestNginxRootIgnoresParentRelativeRoots(t *testing.T) {
+	fakeHome(t)
+	parent := t.TempDir()
+	sitePath := filepath.Join(parent, "app")
+	if err := os.MkdirAll(sitePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeValetFile(t, filepath.Join("Nginx", "app.test"), "root "+filepath.Join(parent, "public")+";")
+
+	got := nginxRoot("app", sitePath)
+	if got != filepath.Join(parent, "public") {
+		t.Fatalf("nginxRoot() = %q, want external absolute root", got)
+	}
+}
+
+func TestIsolatedPHPNormalizesCompactAndDottedSockets(t *testing.T) {
+	fakeHome(t)
+	tests := []struct {
+		name    string
+		conf    string
+		wantPHP string
+	}{
+		{
+			name:    "compact socket",
+			conf:    "fastcgi_pass unix:/home/scott/.config/valet/valet84.sock;",
+			wantPHP: "8.4",
+		},
+		{
+			name:    "dotted socket",
+			conf:    "fastcgi_pass unix:/home/scott/.config/valet/valet8.3.sock;",
+			wantPHP: "8.3",
+		},
+		{
+			name:    "missing socket",
+			conf:    "root /code/app/public;",
+			wantPHP: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writeValetFile(t, filepath.Join("Nginx", tt.name+".test"), tt.conf)
+			got := isolatedPHP(tt.name)
+			if got != tt.wantPHP {
+				t.Fatalf("isolatedPHP() = %q, want %q", got, tt.wantPHP)
+			}
+		})
+	}
+}
+
 func fakeHome(t *testing.T) string {
 	t.Helper()
 
