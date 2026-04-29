@@ -200,6 +200,13 @@ Subdomains (`api.affiliate`, `app.affiliate`, …) group under their parent (`af
 | `~/.config/hostr/` | `state.json` (versioned parked dirs, links, default PHP), PHP ini overrides |
 | `~/.config/systemd/user/hostr-*.service` | `hostr-dns`, `hostr-caddy`, `hostr-php@<spec>` |
 
+## State file compatibility
+
+`~/.config/hostr/state.json` is versioned. Current hostr writes `version: 1`.
+Pre-version state files are treated as version 1 because they have the same
+shape. If a future hostr writes a newer state version, older binaries fail
+instead of guessing how to interpret it.
+
 ## Stack
 
 - **DNS:** tiny Go responder for `*.test` on `127.0.0.1:1053` (`miekg/dns`). Zero upstream config — answers `127.0.0.1` for `*.test`, NXDOMAIN otherwise.
