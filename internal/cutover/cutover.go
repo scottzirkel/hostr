@@ -175,9 +175,13 @@ networkctl reload 2>/dev/null || true
 rm -f /etc/systemd/resolved.conf.d/hostr.conf
 systemctl restart systemd-resolved.service 2>/dev/null || true
 
-# 4) Restore the legacy resolv.conf target.
+# 4) Restore a working resolver target.
 rm -f /etc/resolv.conf
-ln -sf /opt/valet-linux/resolv.conf /etc/resolv.conf
+if [ -f /opt/valet-linux/resolv.conf ]; then
+    ln -sf /opt/valet-linux/resolv.conf /etc/resolv.conf
+else
+    ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+fi
 
 # 5) Restore default unprivileged port range.
 rm -f /etc/sysctl.d/50-hostr.conf

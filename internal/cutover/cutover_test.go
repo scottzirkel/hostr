@@ -87,7 +87,9 @@ func TestRollbackBlockRemovesHostrRouting(t *testing.T) {
 	for _, want := range []string{
 		`rm -f "$d/hostr.conf"`,
 		"rm -f /etc/systemd/resolved.conf.d/hostr.conf",
+		"if [ -f /opt/valet-linux/resolv.conf ]; then",
 		"ln -sf /opt/valet-linux/resolv.conf /etc/resolv.conf",
+		"ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf",
 	} {
 		if !strings.Contains(block, want) {
 			t.Fatalf("rollback block missing %q:\n%s", want, block)
