@@ -20,8 +20,8 @@ trying to become a full Herd replacement.
   - Ensure older pre-1.0 state either loads cleanly or fails with actionable
     guidance.
 - **Core routing correctness**
-  - Continue expanding tests for site detection, custom roots, linked sites, parked dirs,
-    proxies, secure toggle, and missing docroots.
+  - Continue expanding edge-case tests for site detection, custom roots, linked
+    sites, parked dirs, proxies, secure toggle, and missing docroots.
 - **Valet migration reliability**
   - Continue covering parked dirs, linked dirs, Nginx custom roots, isolated PHP versions,
     and missing/weird Valet config.

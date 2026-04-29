@@ -83,6 +83,76 @@ func TestSaveWritesCurrentStateVersion(t *testing.T) {
 	}
 }
 
+func TestResolveCombinesParkedDirsLinksProxyAndDefaultPHP(t *testing.T) {
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	blog := filepath.Join(parked, "blog")
+	app := filepath.Join(parked, "app")
+	custom := filepath.Join(root, "custom")
+	for _, dir := range []string{
+		filepath.Join(blog, "public"),
+		filepath.Join(app, "public"),
+		filepath.Join(custom, "web"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []string{
+		filepath.Join(blog, "composer.json"),
+		filepath.Join(blog, "public", "index.php"),
+		filepath.Join(app, "composer.json"),
+		filepath.Join(app, "public", "index.php"),
+		filepath.Join(custom, "web", "index.html"),
+	} {
+		if err := os.WriteFile(file, []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	state := &State{
+		Parked:     []string{parked},
+		DefaultPHP: "8.4",
+		Links: []Link{
+			{Name: "app", Path: custom, Root: "web", Secure: false},
+			{Name: "vite", Target: "127.0.0.1:5173", Secure: true},
+		},
+	}
+
+	resolved := state.Resolve()
+	if len(resolved) != 3 {
+		t.Fatalf("got %d resolved sites, want 3: %#v", len(resolved), resolved)
+	}
+	byName := resolvedByName(resolved)
+
+	if got := byName["blog"]; got.Kind != KindPHP || got.Docroot != filepath.Join(blog, "public") || got.PHP != "8.4" || !got.Secure {
+		t.Fatalf("blog = %#v", got)
+	}
+	if got := byName["app"]; got.Kind != KindStatic || got.Path != custom || got.Docroot != filepath.Join(custom, "web") || got.PHP != "" || got.Secure {
+		t.Fatalf("app link override = %#v", got)
+	}
+	if got := byName["vite"]; got.Kind != KindProxy || got.Target != "127.0.0.1:5173" || !got.Secure || got.Path != "" {
+		t.Fatalf("vite proxy = %#v", got)
+	}
+}
+
+func TestResolveSkipsInvalidAndHiddenParkedDirs(t *testing.T) {
+	parked := t.TempDir()
+	for _, dir := range []string{"valid", ".hidden", "Bad_Name"} {
+		if err := os.MkdirAll(filepath.Join(parked, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{Parked: []string{parked}}).Resolve()
+	if len(resolved) != 1 {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if resolved[0].Name != "valid" {
+		t.Fatalf("resolved site = %#v", resolved[0])
+	}
+}
+
 func TestWriteFragmentsQuotesPathsAndUsesHTTPForInsecureSites(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -297,4 +367,12 @@ func writeStateFile(t *testing.T, content string) {
 	if err := os.WriteFile(statePath(), []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func resolvedByName(resolved []Resolved) map[string]Resolved {
+	out := make(map[string]Resolved, len(resolved))
+	for _, r := range resolved {
+		out[r.Name] = r
+	}
+	return out
 }
