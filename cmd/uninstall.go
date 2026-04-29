@@ -45,9 +45,9 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 	}
 
 	if purge {
-		for _, d := range []string{paths.DataDir(), paths.StateDir(), paths.ConfigDir()} {
+		for _, d := range hostrDirsForPurge() {
 			fmt.Printf("→ rm -rf %s\n", d)
-			if err := os.RemoveAll(d); err != nil {
+			if err := purgeHostrDir(d); err != nil {
 				return err
 			}
 		}
@@ -59,6 +59,17 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 func hostrUnitsForUninstall() []string {
 	units := []string{"hostr-caddy.service", "hostr-dns.service"}
 	return append(units, phpUnitsForUninstall(paths.SystemdUserDir(), paths.RunDir())...)
+}
+
+func hostrDirsForPurge() []string {
+	return []string{paths.DataDir(), paths.StateDir(), paths.ConfigDir()}
+}
+
+func purgeHostrDir(dir string) error {
+	if filepath.Base(dir) != "hostr" {
+		return fmt.Errorf("refusing to purge non-hostr directory: %s", dir)
+	}
+	return os.RemoveAll(dir)
 }
 
 func phpUnitsForUninstall(systemdDir, runDir string) []string {
