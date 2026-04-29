@@ -166,7 +166,7 @@ Subdomains (`api.affiliate`, `app.affiliate`, …) group under their parent (`af
 |---|---|
 | `~/.local/share/hostr/` | PHP builds, Caddyfile, site fragments, CA stash |
 | `~/.local/state/hostr/` | sockets, logs, fpm runtime config |
-| `~/.config/hostr/` | `state.json` (parked dirs, links, default PHP), PHP ini overrides |
+| `~/.config/hostr/` | `state.json` (versioned parked dirs, links, default PHP), PHP ini overrides |
 | `~/.config/systemd/user/hostr-*.service` | `hostr-dns`, `hostr-caddy`, `hostr-php@<spec>` |
 
 ## Stack

@@ -35,7 +35,10 @@ type Link struct {
 	Secure bool   `json:"secure"`
 }
 
+const CurrentStateVersion = 1
+
 type State struct {
+	Version    int      `json:"version"`
 	Parked     []string `json:"parked"`
 	Links      []Link   `json:"links"`
 	DefaultPHP string   `json:"default_php,omitempty"`
@@ -71,7 +74,7 @@ func ValidateName(name string) error {
 func Load() (*State, error) {
 	b, err := os.ReadFile(statePath())
 	if os.IsNotExist(err) {
-		return &State{}, nil
+		return &State{Version: CurrentStateVersion}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -80,6 +83,9 @@ func Load() (*State, error) {
 	if err := json.Unmarshal(b, &s); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", statePath(), err)
 	}
+	if err := normalizeLoadedState(&s); err != nil {
+		return nil, err
+	}
 	return &s, nil
 }
 
@@ -87,11 +93,25 @@ func Save(s *State) error {
 	if err := os.MkdirAll(paths.ConfigDir(), 0o755); err != nil {
 		return err
 	}
+	s.Version = CurrentStateVersion
 	b, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(statePath(), b, 0o644)
+}
+
+func normalizeLoadedState(s *State) error {
+	switch {
+	case s.Version == 0:
+		// Legacy pre-version state files are the v1 shape.
+		s.Version = CurrentStateVersion
+	case s.Version > CurrentStateVersion:
+		return fmt.Errorf("state file %s has unsupported version %d; this hostr supports up to version %d", statePath(), s.Version, CurrentStateVersion)
+	case s.Version < 0:
+		return fmt.Errorf("state file %s has invalid version %d", statePath(), s.Version)
+	}
+	return nil
 }
 
 // Resolve walks parked dirs and merges explicit links. Links override.

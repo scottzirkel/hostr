@@ -16,7 +16,7 @@ trying to become a full Herd replacement.
     systemd-resolved, Caddy, and p11-kit trust store behavior.
 - **Config/schema stability**
   - Treat `~/.config/hostr/state.json` as a stable contract.
-  - Add a state version or documented migration posture before 1.0.
+  - Document the state migration posture before 1.0.
   - Ensure older pre-1.0 state either loads cleanly or fails with actionable
     guidance.
 - **Core routing correctness**

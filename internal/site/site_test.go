@@ -1,12 +1,87 @@
 package site
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestLoadMissingStateUsesCurrentVersion(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	state, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Version != CurrentStateVersion {
+		t.Fatalf("version = %d, want %d", state.Version, CurrentStateVersion)
+	}
+}
+
+func TestLoadLegacyStateWithoutVersionMigratesToCurrentVersion(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeStateFile(t, `{
+  "parked": ["/code"],
+  "links": [{"name": "app", "path": "/code/app", "secure": true}],
+  "default_php": "8.4"
+}`)
+
+	state, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Version != CurrentStateVersion {
+		t.Fatalf("version = %d, want %d", state.Version, CurrentStateVersion)
+	}
+	if len(state.Parked) != 1 || state.Parked[0] != "/code" {
+		t.Fatalf("parked dirs not preserved: %#v", state.Parked)
+	}
+	if len(state.Links) != 1 || state.Links[0].Name != "app" {
+		t.Fatalf("links not preserved: %#v", state.Links)
+	}
+	if state.DefaultPHP != "8.4" {
+		t.Fatalf("default PHP = %q, want 8.4", state.DefaultPHP)
+	}
+}
+
+func TestLoadRejectsFutureStateVersion(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	writeStateFile(t, `{"version": 999, "parked": [], "links": []}`)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected future version error")
+	}
+	if !strings.Contains(err.Error(), "unsupported version 999") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSaveWritesCurrentStateVersion(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	if err := Save(&State{
+		Parked: []string{"/code"},
+		Links:  []Link{{Name: "app", Path: "/code/app", Secure: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var raw map[string]any
+	data, err := os.ReadFile(statePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if raw["version"] != float64(CurrentStateVersion) {
+		t.Fatalf("version = %#v, want %d in %s", raw["version"], CurrentStateVersion, data)
+	}
+}
 
 func TestWriteFragmentsQuotesPathsAndUsesHTTPForInsecureSites(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
@@ -208,4 +283,15 @@ func readFragment(t *testing.T, name string) string {
 
 func fragmentPath(name string) string {
 	return filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "sites", name+".caddy")
+}
+
+func writeStateFile(t *testing.T, content string) {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(statePath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePath(), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
