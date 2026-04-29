@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -29,11 +31,12 @@ func init() {
 }
 
 func runUninstall(_ *cobra.Command, _ []string) error {
-	for _, u := range []string{"hostr-caddy.service", "hostr-dns.service"} {
+	for _, u := range hostrUnitsForUninstall() {
 		fmt.Printf("→ disable %s\n", u)
 		_ = systemd.DisableNow(u) // ignore: unit may not exist
 		_ = os.Remove(filepath.Join(paths.SystemdUserDir(), u))
 	}
+	_ = os.Remove(filepath.Join(paths.SystemdUserDir(), "hostr-php@.service"))
 	_ = systemd.DaemonReload()
 
 	fmt.Println("→ untrust Caddy local CA (will sudo)")
@@ -51,4 +54,51 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 	}
 	fmt.Println("Done.")
 	return nil
+}
+
+func hostrUnitsForUninstall() []string {
+	units := []string{"hostr-caddy.service", "hostr-dns.service"}
+	return append(units, phpUnitsForUninstall(paths.SystemdUserDir(), paths.RunDir())...)
+}
+
+func phpUnitsForUninstall(systemdDir, runDir string) []string {
+	seen := map[string]bool{}
+	addSpec := func(spec string) {
+		if spec == "" {
+			return
+		}
+		seen["hostr-php@"+spec+".service"] = true
+	}
+
+	for _, pattern := range []string{
+		filepath.Join(systemdDir, "default.target.wants", "hostr-php@*.service"),
+		filepath.Join(systemdDir, "hostr-php@*.service"),
+	} {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			unit := filepath.Base(match)
+			spec := strings.TrimSuffix(strings.TrimPrefix(unit, "hostr-php@"), ".service")
+			addSpec(spec)
+		}
+	}
+
+	for _, pattern := range []string{
+		filepath.Join(runDir, "php-fpm-*.conf"),
+		filepath.Join(runDir, "php-fpm-*.sock"),
+	} {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			base := filepath.Base(match)
+			spec := strings.TrimPrefix(base, "php-fpm-")
+			spec = strings.TrimSuffix(spec, filepath.Ext(spec))
+			addSpec(spec)
+		}
+	}
+
+	units := make([]string, 0, len(seen))
+	for unit := range seen {
+		units = append(units, unit)
+	}
+	sort.Strings(units)
+	return units
 }
