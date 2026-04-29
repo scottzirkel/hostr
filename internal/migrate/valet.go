@@ -1,4 +1,4 @@
-// Package migrate imports a valet-linux configuration into hostr's state.
+// Package migrate imports an existing local PHP dev configuration into hostr's state.
 // Reads ~/.valet/{config.json,Sites,Certificates,Nginx} and produces a Plan
 // the caller can preview or apply.
 package migrate

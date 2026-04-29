@@ -1,6 +1,6 @@
 # hostr
 
-Local web dev server for Linux. PHP + static sites, per-site PHP versions, automatic HTTPS via a local CA. A valet-linux replacement that doesn't fight the resolver.
+Local web dev server for Linux. PHP + static sites, per-site PHP versions, automatic HTTPS via a local CA.
 
 ## Install
 
@@ -26,12 +26,12 @@ artifacts or your OS package manager when available; otherwise rebuild with
 ## Quick start
 
 ```bash
-hostr init                      # diagnose host (resolver, valet, required binaries)
-hostr install                   # provision alongside valet on alt ports (DNS :1053, :8080/:8443)
-hostr php install 8.4           # fetch a static PHP build (Ollama-style)
+hostr init                      # diagnose host resolver and required binaries
+hostr install                   # provision services on alt ports (DNS :1053, :8080/:8443)
+hostr php install 8.4           # fetch a static PHP build
 hostr park ~/code               # any subdir of ~/code becomes <subdir>.test
 hostr link                      # link the current dir as <basename>.test
-hostr migrate-from-valet        # import your existing valet config
+hostr migrate-from-valet        # import an existing local PHP dev config
 
 # When ready:
 hostr cutover                   # swap onto :80/:443 + route *.test through hostr
@@ -84,8 +84,8 @@ shape:
 
 ## PHP CLI proxies
 
-Like Valet and Herd, hostr keeps browser PHP isolation and shell PHP selection
-separate. `hostr isolate <site> <version>` controls PHP-FPM for browser
+hostr keeps browser PHP isolation and shell PHP selection separate.
+`hostr isolate <site> <version>` controls PHP-FPM for browser
 requests. For terminal commands, use hostr's proxies from inside a project:
 
 ```bash
@@ -234,7 +234,7 @@ The per-link config goes in `/etc/systemd/network/<file>.d/hostr.conf` (one per 
   `hostr isolate <site> <ver>`.
 - **Certificates are not trusted:** re-run `hostr install` to reinstall the
   local CA, then restart browsers that cache trust state.
-- **Imported Valet sites look wrong:** run `hostr migrate-from-valet --dry-run`
+- **Imported sites look wrong:** run `hostr migrate-from-valet --dry-run`
   and check the planned links, roots, HTTPS status, and PHP versions before
   applying.
 

@@ -33,7 +33,7 @@ type RootConfig struct {
 	AdminPort int
 }
 
-// PhaseOne is the alongside-valet config: alternate ports, isolated.
+// PhaseOne is the alternate-port config.
 func PhaseOne() RootConfig {
 	return RootConfig{HTTPPort: 8080, HTTPSPort: 8443, AdminPort: 2019}
 }

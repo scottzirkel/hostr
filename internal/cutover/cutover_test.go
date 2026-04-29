@@ -15,7 +15,7 @@ func TestDetectPhase(t *testing.T) {
 		want       Phase
 	}{
 		{
-			name:       "phase one alongside valet",
+			name:       "phase one on alt ports",
 			caddyOnAlt: true,
 			want:       PhaseOne,
 		},

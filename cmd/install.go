@@ -18,7 +18,7 @@ const phaseOneDNSPort = 1053
 
 var installCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Provision hostr alongside valet on alternate ports (DNS :1053, Caddy :8080/:8443)",
+	Short: "Provision hostr on alternate ports (DNS :1053, Caddy :8080/:8443)",
 	Long: `install is non-destructive and idempotent. It:
   - creates hostr's XDG directories
   - generates Caddyfile and systemd user units
@@ -61,7 +61,7 @@ func runInstall(_ *cobra.Command, _ []string) error {
 	fmt.Println("  dig @127.0.0.1 -p 1053 example.test")
 	fmt.Println("  systemctl --user status hostr-dns hostr-caddy")
 	fmt.Println()
-	fmt.Println("Note: *.test still resolves through valet system-wide. To test hostr's DNS")
+	fmt.Println("Note: system-wide *.test routing does not change until cutover. To test hostr's DNS")
 	fmt.Println("specifically, query 127.0.0.1:1053 directly. Cutover swaps the system resolver.")
 	return nil
 }

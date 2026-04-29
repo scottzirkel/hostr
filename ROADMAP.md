@@ -2,7 +2,7 @@
 
 Tracking what's not yet done. Order within sections is rough priority, not commitment.
 
-## 1.0.0 — stable Linux Valet replacement
+## 1.0.0 — stable Linux local dev server
 
 Goal: make the existing Linux-focused workflow stable, recoverable, and supportable
 enough to treat the CLI and config shape as a real contract. This milestone is not
@@ -20,9 +20,9 @@ trying to become a full Herd replacement.
 - **Core routing correctness**
   - Continue expanding edge-case tests for site detection, custom roots, linked
     sites, parked dirs, proxies, secure toggle, and missing docroots.
-- **Valet migration reliability**
+- **Migration reliability**
   - Continue covering parked dirs, linked dirs, Nginx custom roots, isolated PHP versions,
-    and missing/weird Valet config.
+    and missing/weird legacy config.
 - **Supportability**
   - Review error messages for service failures, DNS failures, cert trust
     failures, and port conflicts.

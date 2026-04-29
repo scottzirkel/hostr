@@ -1,5 +1,5 @@
-// Package cutover orchestrates the swap from valet-on-standard-ports
-// to hostr-on-standard-ports. The destructive system mutations are
+// Package cutover orchestrates the swap to hostr-on-standard-ports.
+// The destructive system mutations are
 // emitted as a single shell block for the user to run with sudo;
 // the user-side parts (Caddyfile swap, hostr-caddy restart) we do.
 package cutover
@@ -20,7 +20,7 @@ import (
 type Phase int
 
 const (
-	PhaseOne     Phase = 1 // running alongside valet on alt ports
+	PhaseOne     Phase = 1 // running hostr on alt ports
 	PhaseTwo     Phase = 2 // hostr owns 80/443 and *.test resolution
 	PhasePartial Phase = -1
 )
@@ -79,7 +79,7 @@ func Preflight() []Check {
 		unitActive("hostr-caddy.service", "user"),
 		hasSites(),
 	}
-	checks = append(checks, unitState("valet-dns.service", "valet-dns (will be disabled)"))
+	checks = append(checks, unitState("valet-dns.service", "legacy DNS service (will be disabled)"))
 	checks = append(checks, unitState("nginx.service", "nginx (will be disabled)"))
 	return checks
 }
@@ -131,10 +131,10 @@ set -e
 echo 'net.ipv4.ip_unprivileged_port_start=80' > /etc/sysctl.d/50-hostr.conf
 sysctl --system >/dev/null
 
-# 2) Stop and disable valet's services + dnsmasq (valet's local resolver).
+# 2) Stop and disable legacy local-dev services + dnsmasq.
 systemctl disable --now valet-dns.service nginx.service dnsmasq.service 2>/dev/null || true
 
-# 3) Restore /etc/resolv.conf to systemd-resolved's stub (replaces valet's hijack).
+# 3) Restore /etc/resolv.conf to systemd-resolved's stub.
 rm -f /etc/resolv.conf
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
@@ -161,7 +161,7 @@ systemctl restart systemd-resolved.service
 const sudoRollbackBlock = `# === hostr cutover rollback — run as root ===
 set -e
 
-# 1) Re-enable valet's services.
+# 1) Re-enable legacy local-dev services.
 systemctl enable --now valet-dns.service nginx.service dnsmasq.service 2>/dev/null || true
 
 # 2) Remove per-link routing drop-ins.
@@ -175,7 +175,7 @@ networkctl reload 2>/dev/null || true
 rm -f /etc/systemd/resolved.conf.d/hostr.conf
 systemctl restart systemd-resolved.service 2>/dev/null || true
 
-# 4) Restore valet's resolv.conf hijack.
+# 4) Restore the legacy resolv.conf target.
 rm -f /etc/resolv.conf
 ln -sf /opt/valet-linux/resolv.conf /etc/resolv.conf
 

@@ -25,7 +25,7 @@ type Check struct {
 func Run() []Check {
 	return []Check{
 		checkResolvConf(),
-		checkValetLinux(),
+		checkLegacyLocalDevStack(),
 		checkSystemdResolved(),
 		checkSystemdUser(),
 		checkBinary("caddy", "Required as the reverse proxy. Install: sudo pacman -S caddy"),
@@ -53,7 +53,7 @@ func checkResolvConf() Check {
 	switch {
 	case strings.Contains(target, "valet-linux"):
 		c.Status = Warn
-		c.Hint = "valet-linux owns your resolver. `hostr install` runs alongside on alt ports. `hostr cutover` will atomically swap once you've verified."
+		c.Hint = "Another local dev resolver owns your resolver. `hostr install` uses alt ports. `hostr cutover` will atomically swap once you've verified."
 	case strings.Contains(target, "systemd"):
 		c.Status = OK
 	default:
@@ -63,16 +63,16 @@ func checkResolvConf() Check {
 	return c
 }
 
-func checkValetLinux() Check {
-	c := Check{Name: "valet-linux presence"}
+func checkLegacyLocalDevStack() Check {
+	c := Check{Name: "legacy local dev stack"}
 	if _, err := os.Stat("/opt/valet-linux"); err == nil {
 		c.Status = Warn
-		c.Detail = "/opt/valet-linux exists (running alongside)"
-		c.Hint = "OK during install — hostr coexists on alt ports. Cutover will stop valet-dns and reclaim 80/443/53."
+		c.Detail = "existing local dev stack detected"
+		c.Hint = "OK during install — hostr uses alt ports. Cutover will stop legacy services and reclaim 80/443/53."
 		return c
 	}
 	c.Status = OK
-	c.Detail = "not installed"
+	c.Detail = "not detected"
 	return c
 }
 

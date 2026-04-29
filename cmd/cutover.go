@@ -22,10 +22,10 @@ var (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Swap hostr onto :80/:443 and route *.test through it (replaces valet)",
-	Long: `cutover atomically swaps from "valet on standard ports" to
-"hostr on standard ports". The destructive system changes (resolv.conf swap,
-systemd-resolved drop-in, port range, valet shutdown) are emitted as a single
+	Short: "Swap hostr onto :80/:443 and route *.test through it",
+	Long: `cutover atomically swaps hostr onto standard HTTP/TLS ports and
+system-wide .test routing. The destructive system changes (resolv.conf swap,
+systemd-resolved drop-in, port range, legacy service shutdown) are emitted as a single
 sudo-able shell block — copy and run it. Then re-run "hostr cutover" and it
 will detect the changed state and finish the user-side swap (Caddy → :80/:443).
 
@@ -131,7 +131,7 @@ func runRollback() error {
 	if err := cutover.SwapToPhaseOne(); err != nil {
 		return err
 	}
-	fmt.Println("✓ hostr-caddy back on :8080/:8443. valet-dns + nginx are owning the standard ports again.")
+	fmt.Println("✓ hostr-caddy back on :8080/:8443. Legacy services can own the standard ports again.")
 	return nil
 }
 

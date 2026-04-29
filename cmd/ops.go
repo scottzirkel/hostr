@@ -497,7 +497,7 @@ func caddyAddrLabel(std, alt bool) string {
 func phaseLabel(p cutover.Phase) string {
 	switch p {
 	case cutover.PhaseOne:
-		return "Phase 1 — alongside valet on alt ports (run `hostr cutover` to swap)"
+		return "Phase 1 — hostr on alt ports (run `hostr cutover` to swap)"
 	case cutover.PhaseTwo:
 		return "Phase 2 — hostr owns standard ports + DNS routing"
 	}

@@ -16,7 +16,7 @@ var migrateDryRun bool
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate-from-valet",
-	Short: "Import valet-linux config (parked dirs, linked sites, PHP isolation) into hostr",
+	Short: "Import an existing local PHP dev config into hostr",
 	Long: `Reads ~/.valet/config.json, ~/.valet/Sites/, and ~/.valet/Nginx/ and
 imports parked directories, linked sites, HTTPS toggles, and per-site PHP
 isolation. Safe to run repeatedly — duplicates are de-duped.`,
