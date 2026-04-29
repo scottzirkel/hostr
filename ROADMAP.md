@@ -27,7 +27,8 @@ trying to become a full Herd replacement.
   - Review error messages for service failures, DNS failures, cert trust
     failures, and port conflicts.
 - **Distribution**
-  - Exercise the GitHub release workflow on the next `v0.x.y` tag.
+  - Decide whether prebuilt binary artifacts should be attached to every GitHub
+    release or only larger milestones.
   - Tagged releases with proper semver; `hostr version` already prints
     `git describe`.
 - **Docs pass**
