@@ -34,7 +34,7 @@ hostr tui                       # interactive dashboard (see Keys below)
 hostr status                    # flat table — all sites + resolved settings
 hostr open [name]               # xdg-open https://<name>.test (port-aware)
 hostr logs <name>               # tail Caddy access + PHP errors for one site
-hostr doctor [--probe]          # health check; --probe also HEADs every site
+hostr doctor [--probe] [--json] # health check; --probe also HEADs every site
 hostr reload                    # re-detect docroots, regen fragments, reload Caddy
 hostr restart [unit]            # restart all hostr services or one named unit
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -240,65 +241,183 @@ var logsCmd = &cobra.Command{
 
 // --- doctor ---------------------------------------------------------------
 
-var doctorProbe bool
+var (
+	doctorProbe bool
+	doctorJSON  bool
+)
+
+type doctorReport struct {
+	Services   []doctorService     `json:"services"`
+	Network    doctorNetwork       `json:"network"`
+	DNS        doctorDNS           `json:"dns"`
+	Cutover    doctorCutover       `json:"cutover"`
+	SiteProbes []doctorProbeResult `json:"site_probes,omitempty"`
+}
+
+type doctorService struct {
+	Name   string `json:"name"`
+	OK     bool   `json:"ok"`
+	Status string `json:"status"`
+}
+
+type doctorEndpoint struct {
+	Name   string `json:"name"`
+	OK     bool   `json:"ok"`
+	Detail string `json:"detail"`
+}
+
+type doctorNetwork struct {
+	CaddyAdmin doctorEndpoint `json:"caddy_admin"`
+	CaddyHTTPS doctorEndpoint `json:"caddy_https"`
+	HostrDNS   doctorEndpoint `json:"hostr_dns"`
+}
+
+type doctorDNS struct {
+	OK       bool   `json:"ok"`
+	Name     string `json:"name"`
+	Answer   string `json:"answer"`
+	Expected string `json:"expected"`
+}
+
+type doctorCutover struct {
+	Phase string `json:"phase"`
+	Label string `json:"label"`
+}
+
+type doctorProbeResult struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	OK         bool   `json:"ok"`
+	Status     string `json:"status"`
+	StatusCode int    `json:"status_code,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "End-to-end health check: services, ports, DNS, cutover phase (--probe also GETs each site)",
-	RunE: func(_ *cobra.Command, _ []string) error {
-		// Services
-		fmt.Println("Services")
-		units := []string{"hostr-dns.service", "hostr-caddy.service"}
-		units = append(units, runningPHPUnits()...)
-		for _, u := range units {
-			out, _ := exec.Command("systemctl", "--user", "is-active", u).Output()
-			state := strings.TrimSpace(string(out))
-			fmt.Printf("  %s  %-30s %s\n", mark(state == "active"), u, state)
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		report, err := collectDoctorReport(doctorProbe)
+		if err != nil {
+			return err
 		}
-
-		// Network
-		fmt.Println("\nNetwork")
-		fmt.Printf("  %s  caddy admin       127.0.0.1:2019  (%s)\n",
-			mark(httpOK("http://127.0.0.1:2019/config/")), upDown(httpOK("http://127.0.0.1:2019/config/")))
-		std := portBound(":443") || portBound("127.0.0.1:443")
-		alt := portBound("127.0.0.1:8443")
-		fmt.Printf("  %s  caddy https       %s\n", mark(std || alt), caddyAddrLabel(std, alt))
-		fmt.Printf("  %s  hostr-dns         127.0.0.1:1053  (%s)\n",
-			mark(portBound("127.0.0.1:1053")), upDown(portBound("127.0.0.1:1053")))
-
-		// DNS sanity
-		fmt.Println("\nDNS")
-		ans := queryHostrDNS("doctor.hostr.test")
-		fmt.Printf("  %s  hostr-dns answers *.test → %s\n", mark(ans == "127.0.0.1"), ans)
-
-		// Cutover phase
-		fmt.Println("\nCutover")
-		fmt.Printf("  %s\n", phaseLabel(cutover.Detect()))
-
-		// Optional per-site probe
-		if doctorProbe {
-			fmt.Println("\nSite probes")
-			s, err := site.Load()
-			if err != nil {
-				return err
-			}
-			sites := s.Resolve()
-			w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-			for _, r := range sites {
-				code, err := probeSite(r.Name)
-				switch {
-				case err != nil:
-					fmt.Fprintf(w, "  ✗\t%s.test\t%s\n", r.Name, err)
-				case code >= 200 && code < 400:
-					fmt.Fprintf(w, "  ✓\t%s.test\tHTTP %d\n", r.Name, code)
-				default:
-					fmt.Fprintf(w, "  !\t%s.test\tHTTP %d\n", r.Name, code)
-				}
-			}
-			w.Flush()
+		if doctorJSON {
+			enc := json.NewEncoder(cmd.OutOrStdout())
+			enc.SetIndent("", "  ")
+			return enc.Encode(report)
 		}
-		return nil
+		return renderDoctorText(cmd, report)
 	},
+}
+
+func collectDoctorReport(withProbes bool) (doctorReport, error) {
+	report := doctorReport{}
+
+	units := []string{"hostr-dns.service", "hostr-caddy.service"}
+	units = append(units, runningPHPUnits()...)
+	for _, u := range units {
+		out, _ := exec.Command("systemctl", "--user", "is-active", u).Output()
+		state := strings.TrimSpace(string(out))
+		report.Services = append(report.Services, doctorService{
+			Name:   u,
+			OK:     state == "active",
+			Status: state,
+		})
+	}
+
+	caddyAdminOK := httpOK("http://127.0.0.1:2019/config/")
+	std := portBound(":443") || portBound("127.0.0.1:443")
+	alt := portBound("127.0.0.1:8443")
+	hostrDNSOK := portBound("127.0.0.1:1053")
+	report.Network = doctorNetwork{
+		CaddyAdmin: doctorEndpoint{Name: "caddy admin", OK: caddyAdminOK, Detail: "127.0.0.1:2019 (" + upDown(caddyAdminOK) + ")"},
+		CaddyHTTPS: doctorEndpoint{Name: "caddy https", OK: std || alt, Detail: caddyAddrLabel(std, alt)},
+		HostrDNS:   doctorEndpoint{Name: "hostr-dns", OK: hostrDNSOK, Detail: "127.0.0.1:1053 (" + upDown(hostrDNSOK) + ")"},
+	}
+
+	const dnsName = "doctor.hostr.test"
+	const expectedDNS = "127.0.0.1"
+	ans := queryHostrDNS(dnsName)
+	report.DNS = doctorDNS{
+		OK:       ans == expectedDNS,
+		Name:     dnsName,
+		Answer:   ans,
+		Expected: expectedDNS,
+	}
+
+	phase := cutover.Detect()
+	report.Cutover = doctorCutover{
+		Phase: cutoverPhaseName(phase),
+		Label: phaseLabel(phase),
+	}
+
+	if withProbes {
+		s, err := site.Load()
+		if err != nil {
+			return report, err
+		}
+		for _, r := range s.Resolve() {
+			url := siteURL(r.Name)
+			probe := doctorProbeResult{Name: r.Name, URL: url}
+			code, err := probeSite(r.Name)
+			switch {
+			case err != nil:
+				probe.OK = false
+				probe.Status = "error"
+				probe.Error = err.Error()
+			case code >= 200 && code < 400:
+				probe.OK = true
+				probe.Status = fmt.Sprintf("HTTP %d", code)
+				probe.StatusCode = code
+			default:
+				probe.OK = false
+				probe.Status = fmt.Sprintf("HTTP %d", code)
+				probe.StatusCode = code
+			}
+			report.SiteProbes = append(report.SiteProbes, probe)
+		}
+	}
+
+	return report, nil
+}
+
+func renderDoctorText(cmd *cobra.Command, report doctorReport) error {
+	out := cmd.OutOrStdout()
+
+	fmt.Fprintln(out, "Services")
+	for _, service := range report.Services {
+		fmt.Fprintf(out, "  %s  %-30s %s\n", mark(service.OK), service.Name, service.Status)
+	}
+
+	fmt.Fprintln(out, "\nNetwork")
+	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.CaddyAdmin.OK), report.Network.CaddyAdmin.Name, report.Network.CaddyAdmin.Detail)
+	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.CaddyHTTPS.OK), report.Network.CaddyHTTPS.Name, report.Network.CaddyHTTPS.Detail)
+	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.HostrDNS.OK), report.Network.HostrDNS.Name, report.Network.HostrDNS.Detail)
+
+	fmt.Fprintln(out, "\nDNS")
+	fmt.Fprintf(out, "  %s  hostr-dns answers *.test → %s\n", mark(report.DNS.OK), report.DNS.Answer)
+
+	fmt.Fprintln(out, "\nCutover")
+	fmt.Fprintf(out, "  %s\n", report.Cutover.Label)
+
+	if len(report.SiteProbes) > 0 {
+		fmt.Fprintln(out, "\nSite probes")
+		w := tabwriter.NewWriter(out, 0, 2, 2, ' ', 0)
+		for _, probe := range report.SiteProbes {
+			name := strings.TrimSuffix(probe.Name, ".test") + ".test"
+			switch {
+			case probe.Error != "":
+				fmt.Fprintf(w, "  ✗\t%s\t%s\n", name, probe.Error)
+			case probe.OK:
+				fmt.Fprintf(w, "  ✓\t%s\t%s\n", name, probe.Status)
+			default:
+				fmt.Fprintf(w, "  !\t%s\t%s\n", name, probe.Status)
+			}
+		}
+		return w.Flush()
+	}
+
+	return nil
 }
 
 func probeSite(name string) (int, error) {
@@ -385,6 +504,16 @@ func phaseLabel(p cutover.Phase) string {
 	return "Partial — system in mixed state; re-run `hostr cutover` or `--rollback` to converge"
 }
 
+func cutoverPhaseName(p cutover.Phase) string {
+	switch p {
+	case cutover.PhaseOne:
+		return "phase_one"
+	case cutover.PhaseTwo:
+		return "phase_two"
+	}
+	return "partial"
+}
+
 func queryHostrDNS(name string) string {
 	out, err := exec.Command(os.Args[0], "query", name).CombinedOutput()
 	if err != nil {
@@ -427,5 +556,6 @@ func init() {
 	logsCmd.Flags().IntVarP(&logsLines, "lines", "n", 50, "show this many trailing lines before following")
 	logsCmd.Flags().BoolVar(&logsPHP, "no-php", false, "exclude php-fpm error log")
 	doctorCmd.Flags().BoolVar(&doctorProbe, "probe", false, "also issue a HEAD against every site")
+	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "emit machine-readable JSON")
 	rootCmd.AddCommand(reloadCmd, restartCmd, statusCmd, openCmd, logsCmd, doctorCmd, tuiCmd, tuiRenderCmd)
 }

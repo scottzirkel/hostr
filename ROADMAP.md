@@ -2,7 +2,49 @@
 
 Tracking what's not yet done. Order within sections is rough priority, not commitment.
 
-## Near-term (small, well-scoped)
+## 1.0.0 — stable Linux Valet replacement
+
+Goal: make the existing Linux-focused workflow stable, recoverable, and supportable
+enough to treat the CLI and config shape as a real contract. This milestone is not
+trying to become a full Herd replacement.
+
+- **Installation and rollback confidence**
+  - Harden `hostr install`, `hostr cutover`, `hostr cutover --rollback`, and
+    `hostr uninstall --purge`.
+  - Add tests around cutover state detection and rendered system changes.
+  - Document the required host assumptions: systemd user services,
+    systemd-resolved, Caddy, and p11-kit trust store behavior.
+- **Config/schema stability**
+  - Treat `~/.config/hostr/state.json` as a stable contract.
+  - Add a state version or documented migration posture before 1.0.
+  - Ensure older pre-1.0 state either loads cleanly or fails with actionable
+    guidance.
+- **Core routing correctness**
+  - Continue expanding tests for site detection, custom roots, linked sites, parked dirs,
+    proxies, secure toggle, and missing docroots.
+- **Valet migration reliability**
+  - Cover parked dirs, linked dirs, Nginx custom roots, isolated PHP versions,
+    and missing/weird Valet config.
+- **Supportability**
+  - Review error messages for service failures, DNS failures, cert trust
+    failures, and port conflicts.
+  - **Caddy log rotation** — `output file` doesn't rotate; either configure a
+    logrotate snippet on install or switch to size-bounded rolling logs.
+- **Distribution**
+  - GitHub Releases with prebuilt binaries via a `release.yml` workflow.
+  - Release workflow should run `go test`, `go vet`, and build artifacts from
+    tags.
+  - Tagged releases with proper semver; `hostr version` already prints
+    `git describe`.
+- **Docs pass**
+  - README should clearly cover install, migrate from Valet, rollback,
+    uninstall, common failures, and where files live.
+  - Document the `hostr doctor --json` output contract for scripts, bug reports,
+    and regression checks.
+  - Add a short 1.0 support contract: Linux-only, `.test`, systemd-resolved
+    expectations, no GUI, no auto-update.
+
+## Near-term after 1.0 (small, well-scoped)
 
 - **TUI: help overlay** — `?` opens a full keymap modal so the footer can stay short.
 - **TUI: auto-refresh** — re-probe every N seconds (off by default), toggle with a key.
@@ -11,15 +53,11 @@ Tracking what's not yet done. Order within sections is rough priority, not commi
 - **`hostr alias <existing> <new>`** — register additional names that resolve to the same site (multiple `.test` hostnames → one source dir/proxy/php config).
 - **`hostr park --root <path>`** — apply a default `--root` to every subdir of a parked dir (e.g. all subdirs are vite apps with `dist/` outputs).
 - **Per-site env file passthrough** — let a site declare a `.env` whose vars hostr-php-fpm exports into the worker (`env[FOO] = bar` lines in the pool config). Useful for sites that need different DB creds per env.
-- **`hostr doctor --json`** — machine-readable health output for CI / scripts.
-- **Caddy log rotation** — `output file` doesn't rotate; either configure logrotate snippet on install or switch to size-bounded rolling logs.
 
 ## Mid-term
 
 - **Distribution**
   - AUR package (`hostr-bin`) so Arch users `paru -S hostr-bin`.
-  - GitHub Releases with prebuilt binaries (musl-static so they run anywhere) via a `release.yml` workflow.
-  - Tagged releases with proper semver; `hostr version` already prints `git describe`.
 - **Bundled services (Herd-Pro-style)**
   - **MariaDB / Postgres** — managed user systemd unit per version, ports 3306/5432, data under `~/.local/share/hostr/db/`.
   - **Redis** — single user-space instance.
