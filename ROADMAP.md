@@ -6,7 +6,7 @@ Tracking what's not yet done. Order within sections is rough priority, not commi
 
 Goal: make the existing Linux-focused workflow stable, recoverable, and supportable
 enough to treat the CLI and config shape as a real contract. This milestone is not
-trying to become a full Herd replacement.
+trying to become a full-stack desktop dev suite.
 
 - **Installation and rollback confidence**
   - Harden `hostr install`, `hostr cutover`, `hostr cutover --rollback`, and
@@ -50,7 +50,7 @@ trying to become a full Herd replacement.
 
 - **Distribution**
   - AUR package (`hostr-bin`) so Arch users `paru -S hostr-bin`.
-- **Bundled services (Herd-Pro-style)**
+- **Bundled services**
   - **MariaDB / Postgres** — managed user systemd unit per version, ports 3306/5432, data under `~/.local/share/hostr/db/`.
   - **Redis** — single user-space instance.
   - **Mailpit** — SMTP catcher on :1025, web UI on :8025, optionally proxied as `mail.test`.
@@ -66,9 +66,9 @@ trying to become a full Herd replacement.
 - **Caddy admin API integration** — drive site changes via the admin API instead of file fragments + reload (faster, atomic).
 - **Plugin / driver system** — Laravel-style "drivers" for unusual project layouts so the auto-detect can be extended without touching core.
 - **Web dashboard** — small local web UI (in addition to TUI) for users who prefer a browser.
-- **macOS support** — most of the stack (Caddy, php-fpm, miekg/dns) is portable; the resolver bits are Linux-specific. Probably not worth doing while Herd exists.
+- **macOS support** — most of the stack (Caddy, php-fpm, miekg/dns) is portable; the resolver bits are Linux-specific. Not a near-term priority.
 
 ## Won't do
 
-- **GUI app** — explicit project rejection from day one; Herd already covers this niche.
+- **GUI app** — explicit project rejection from day one.
 - **Auto-updating the binary in place** — leave to OS package managers (AUR, brew, deb, rpm) and `git pull && bash install.sh`.
