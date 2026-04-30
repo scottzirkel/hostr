@@ -90,6 +90,19 @@ func TestSudoBlockConfiguresPerLinkRouting(t *testing.T) {
 	}
 }
 
+func TestSudoBlockChecksNetworkFilesBeforeMutatingSystem(t *testing.T) {
+	block := SudoBlock()
+	guard := strings.Index(block, "hostr cutover needs at least one /etc/systemd/network/*.network file")
+	sysctl := strings.Index(block, "echo 'net.ipv4.ip_unprivileged_port_start=80'")
+	resolv := strings.Index(block, "rm -f /etc/resolv.conf")
+	if guard == -1 || sysctl == -1 || resolv == -1 {
+		t.Fatalf("sudo block missing expected guard or mutations:\n%s", block)
+	}
+	if !(guard < sysctl && sysctl < resolv) {
+		t.Fatalf("sudo block should check network files before sysctl and resolver changes:\n%s", block)
+	}
+}
+
 func TestRollbackBlockRemovesHostrRouting(t *testing.T) {
 	block := SudoRollbackBlock()
 	for _, want := range []string{
@@ -102,5 +115,17 @@ func TestRollbackBlockRemovesHostrRouting(t *testing.T) {
 		if !strings.Contains(block, want) {
 			t.Fatalf("rollback block missing %q:\n%s", want, block)
 		}
+	}
+}
+
+func TestRollbackBlockRestoresResolverBeforeSysctl(t *testing.T) {
+	block := SudoRollbackBlock()
+	resolv := strings.Index(block, "rm -f /etc/resolv.conf")
+	sysctl := strings.Index(block, "rm -f /etc/sysctl.d/50-hostr.conf")
+	if resolv == -1 || sysctl == -1 {
+		t.Fatalf("rollback block missing expected resolver or sysctl restoration:\n%s", block)
+	}
+	if resolv > sysctl {
+		t.Fatalf("rollback block should restore resolver before sysctl cleanup:\n%s", block)
 	}
 }

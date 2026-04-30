@@ -77,7 +77,7 @@ func runCutover(_ *cobra.Command, _ []string) error {
 	resolvDone := resolvIsSystemdStub()
 	perLinkDone := perLinkDropinExists()
 	sysctlDone := fileExists("/etc/sysctl.d/50-hostr.conf")
-	sudoDone := resolvDone && perLinkDone && sysctlDone
+	sudoDone := cutoverSystemSideApplied(resolvDone, perLinkDone, sysctlDone)
 
 	fmt.Println()
 	if !sudoDone {
@@ -115,7 +115,7 @@ func runRollback() error {
 	resolvSystemd := resolvIsSystemdStub()
 	perLink := perLinkDropinExists()
 	sysctl := fileExists("/etc/sysctl.d/50-hostr.conf")
-	systemSideStillApplied := resolvSystemd || perLink || sysctl
+	systemSideStillApplied := rollbackSystemSideStillApplied(resolvSystemd, perLink, sysctl)
 
 	if systemSideStillApplied {
 		fmt.Println("Step 1 — run this as root to revert the system changes:")
@@ -133,6 +133,14 @@ func runRollback() error {
 	}
 	fmt.Println("✓ hostr-caddy back on :8080/:8443. Legacy services can own the standard ports again.")
 	return nil
+}
+
+func cutoverSystemSideApplied(resolvDone, perLinkDone, sysctlDone bool) bool {
+	return resolvDone && perLinkDone && sysctlDone
+}
+
+func rollbackSystemSideStillApplied(resolvSystemd, perLink, sysctl bool) bool {
+	return resolvSystemd || perLink || sysctl
 }
 
 func resolvIsSystemdStub() bool {
