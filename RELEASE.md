@@ -84,3 +84,5 @@ The initial release line was reconstructed from the first commits:
   failed `trust anchor` actions.
 - Documented the completed DNS, port, and certificate troubleshooting paths for
   the stable v1 Linux support contract.
+- Marked the 1.0 roadmap complete and moved open-ended routing coverage
+  expansion to post-1.0 work.

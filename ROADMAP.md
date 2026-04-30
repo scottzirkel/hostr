@@ -1,8 +1,9 @@
 # Roadmap
 
-Tracking what's not yet done. Order within sections is rough priority, not commitment.
+Tracking release status and future work. Order within sections is rough
+priority, not commitment.
 
-## 1.0.0 — stable Linux local dev server
+## 1.0.0 — stable Linux local dev server (complete)
 
 Goal: make the existing Linux-focused workflow stable, recoverable, and supportable
 enough to treat the CLI and config shape as a real contract. This milestone is not
@@ -28,16 +29,15 @@ trying to become a full-stack desktop dev suite.
     Caddy, and p11-kit trust store behavior.
 - **Config/schema stability**
   - Treat `~/.config/hostr/state.json` as a stable contract.
-  - Add explicit migrations when a future state version changes shape.
+  - Current state files are versioned as `version: 1`; future shape changes
+    require explicit migrations instead of silent guessing.
 - **Core routing correctness**
-  - Continue expanding edge-case tests for site detection, parked dirs, proxies,
-    and more path combinations.
   - Custom roots, linked-site overrides, secure toggle rendering, and
     missing-docroot status output now have focused coverage.
-  - Proxy targets now validate before state is saved or Caddy fragments render;
-    continue testing more routing combinations.
+  - Proxy targets now validate before state is saved or Caddy fragments render.
+  - Site detection, parked directory resolution, proxy target validation, and
+    Caddy fragment rendering have focused coverage for the v1 contract.
 - **Migration reliability**
-  - Continue covering more unusual legacy Valet layouts.
   - Missing/malformed config, relative symlinks, quoted Nginx roots, whitespace,
     custom roots, and isolated PHP versions now have focused coverage.
 - **Supportability**
@@ -54,9 +54,10 @@ trying to become a full-stack desktop dev suite.
   - Tagged releases with proper semver; `hostr version` already prints
     `git describe`.
 - **Docs pass**
-  - Keep README troubleshooting current as install, migration, rollback, and
-    release packaging behavior changes.
-  - Expand command help where workflows still require README context.
+  - README troubleshooting covers install, migration, rollback, DNS, port,
+    certificate, and source/tag-only release behavior.
+  - Command help covers the v1 workflows that should be usable without reading
+    implementation details.
 
 ## Near-term after 1.0 (small, well-scoped)
 
@@ -64,6 +65,8 @@ trying to become a full-stack desktop dev suite.
 - **TUI: auto-refresh** — re-probe every N seconds (off by default), toggle with a key.
 - **TUI: inline actions** — `u` unlink, `s` toggle secure, `R` change `--root` for the highlighted site without dropping to the CLI.
 - **TUI: filter by HTTPS column** — already by status/kind/secure; add a `proxy`-only quick filter (currently you can `t` cycle to it but the kind enum only has `php`/`static`).
+- **More routing edge coverage** — keep adding unusual parked-dir, linked-site,
+  proxy, and path-combination cases as they appear.
 - **`hostr alias <existing> <new>`** — register additional names that resolve to the same site (multiple `.test` hostnames → one source dir/proxy/php config).
 - **`hostr park --root <path>`** — apply a default `--root` to every subdir of a parked dir (e.g. all subdirs are vite apps with `dist/` outputs).
 - **Per-site env file passthrough** — let a site declare a `.env` whose vars hostr-php-fpm exports into the worker (`env[FOO] = bar` lines in the pool config). Useful for sites that need different DB creds per env.
