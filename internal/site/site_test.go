@@ -136,6 +136,60 @@ func TestResolveCombinesParkedDirsLinksProxyAndDefaultPHP(t *testing.T) {
 	}
 }
 
+func TestResolveCustomRootRoutingBehavior(t *testing.T) {
+	tests := []struct {
+		name     string
+		root     string
+		files    []string
+		wantKind Kind
+	}{
+		{
+			name:     "public php root",
+			root:     "public",
+			files:    []string{"public/index.php"},
+			wantKind: KindPHP,
+		},
+		{
+			name:     "dist static root",
+			root:     "dist",
+			files:    []string{"dist/index.html"},
+			wantKind: KindStatic,
+		},
+		{
+			name:     "missing root",
+			root:     "missing",
+			wantKind: KindStatic,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, file := range tt.files {
+				path := filepath.Join(dir, file)
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte("ok"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			resolved := (&State{
+				Links: []Link{{Name: "app", Path: dir, Root: tt.root}},
+			}).Resolve()
+			if len(resolved) != 1 {
+				t.Fatalf("resolved = %#v", resolved)
+			}
+
+			wantDocroot := filepath.Join(dir, tt.root)
+			if resolved[0].Kind != tt.wantKind || resolved[0].Docroot != wantDocroot {
+				t.Fatalf("resolved site = %#v, want kind %s and docroot %q", resolved[0], tt.wantKind, wantDocroot)
+			}
+		})
+	}
+}
+
 func TestResolveSkipsInvalidAndHiddenParkedDirs(t *testing.T) {
 	parked := t.TempDir()
 	for _, dir := range []string{"valid", ".hidden", "Bad_Name"} {
