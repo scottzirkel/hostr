@@ -166,6 +166,35 @@ func TestResolveAppliesParkedRootToEachChild(t *testing.T) {
 	}
 }
 
+func TestResolveExplicitLinkOverridesParkedRoot(t *testing.T) {
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	child := filepath.Join(parked, "app")
+	custom := filepath.Join(root, "custom")
+	for _, dir := range []string{
+		filepath.Join(child, "dist"),
+		filepath.Join(custom, "public"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		Parked:      []string{parked},
+		ParkedRoots: map[string]string{parked: "dist"},
+		Links:       []Link{{Name: "app", Path: custom, Root: "public", Secure: false}},
+	}).Resolve()
+
+	byName := resolvedByName(resolved)
+	if got := byName["app"]; got.Path != custom || got.Docroot != filepath.Join(custom, "public") || got.Secure {
+		t.Fatalf("explicit link should override tracked site: %#v", got)
+	}
+}
+
 func TestResolveSkipsIgnoredParkedSitesButAllowsExplicitLinks(t *testing.T) {
 	parked := t.TempDir()
 	for _, dir := range []string{"ignored", "visible"} {
@@ -231,6 +260,30 @@ func TestResolveAliasesConcreteAndProxySites(t *testing.T) {
 	}
 	if got := byName["frontend"]; got.AliasOf != "vite" || got.Kind != KindProxy || got.Target != "127.0.0.1:5173" || got.Secure {
 		t.Fatalf("frontend alias = %#v", got)
+	}
+}
+
+func TestResolveAliasChainUsesFinalTargetConfig(t *testing.T) {
+	project := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(filepath.Join(project, "public"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, "public", "index.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := (&State{
+		DefaultPHP: "8.4",
+		Links:      []Link{{Name: "app", Path: project, Root: "public", Secure: true}},
+		Aliases: []Alias{
+			{Name: "api", Target: "app"},
+			{Name: "v1", Target: "api"},
+		},
+	}).Resolve()
+
+	byName := resolvedByName(resolved)
+	if got := byName["v1"]; got.AliasOf != "api" || got.Kind != KindPHP || got.Path != project || got.Docroot != filepath.Join(project, "public") || got.PHP != "8.4" {
+		t.Fatalf("alias chain = %#v", got)
 	}
 }
 

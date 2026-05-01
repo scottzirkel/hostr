@@ -87,3 +87,4 @@ The initial release line was reconstructed from the first commits:
   share the same docroot override, such as `dist/`.
 - Add per-site PHP `.env` passthrough through generated PHP-FPM pools and
   per-site sockets.
+- Expand routing coverage for tracked-root overrides and alias chains.

@@ -14,6 +14,8 @@ priority, not commitment.
   docroot override to every immediate child of a tracked dir.
 - **Per-site env file passthrough** — PHP sites with a project `.env` get a
   generated PHP-FPM pool and per-site socket with `env[FOO] = bar` entries.
+- **Routing edge coverage** — added focused coverage for tracked-root overrides,
+  explicit-link precedence, and alias chains.
 
 ### v1.3.0 — process-backed dev apps
 
