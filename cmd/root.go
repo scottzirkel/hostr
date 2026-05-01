@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/scottzirkel/hostr/internal/tui"
 )
 
 var rootCmd = &cobra.Command{
@@ -13,6 +15,9 @@ var rootCmd = &cobra.Command{
 	Long: `hostr serves local PHP and static sites under *.test with auto-issued HTTPS.
 Per-site PHP version isolation. Single static binary. Caddy + php-fpm under
 systemd user units. No daemon of its own.`,
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return tui.Run()
+	},
 }
 
 func Execute() {

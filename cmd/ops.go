@@ -588,19 +588,22 @@ func parseHostrDNSOutput(out string) dnsQueryResult {
 // --- tui (still stub) -----------------------------------------------------
 
 var tuiCmd = &cobra.Command{
-	Use:   "tui",
-	Short: "Interactive dashboard — site list with live HTTP status; ↑/↓ navigate, o open, r refresh, q quit",
+	Use:    "tui",
+	Short:  "Interactive dashboard — site list, health, logs, filters, and inline actions",
+	Hidden: true,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return tui.Run()
 	},
 }
+
+var tuiRenderWidth int
 
 var tuiRenderCmd = &cobra.Command{
 	Use:    "tui-render",
 	Short:  "Render one TUI frame to stdout (debug — no event loop, no alt screen)",
 	Hidden: true,
 	RunE: func(_ *cobra.Command, _ []string) error {
-		fmt.Print(tui.DebugRender(120))
+		fmt.Print(tui.DebugRender(tuiRenderWidth))
 		fmt.Println()
 		return nil
 	},
@@ -611,5 +614,6 @@ func init() {
 	logsCmd.Flags().BoolVar(&logsPHP, "no-php", false, "exclude php-fpm error log")
 	doctorCmd.Flags().BoolVar(&doctorProbe, "probe", false, "also issue a HEAD against every site")
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "emit machine-readable JSON")
+	tuiRenderCmd.Flags().IntVar(&tuiRenderWidth, "width", 120, "terminal width to render")
 	rootCmd.AddCommand(reloadCmd, restartCmd, statusCmd, openCmd, logsCmd, doctorCmd, tuiCmd, tuiRenderCmd)
 }

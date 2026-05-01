@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/scottzirkel/hostr/internal/paths"
 	"github.com/scottzirkel/hostr/internal/site"
 )
 
@@ -78,9 +80,9 @@ func computeLayout(termWidth int) layout {
 }
 
 var (
-	bannerStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("141")) // bright purple, no bg
-	taglineStyle = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("245"))
-	ruleStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
+	bannerStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("141")) // bright purple, no bg
+	taglineStyle  = lipgloss.NewStyle().Italic(true).Foreground(lipgloss.Color("245"))
+	ruleStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("141"))
 	headerStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("245")).Underline(true)
 	okStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#04B575"))
 	warnStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFB454"))
@@ -103,6 +105,59 @@ type probeMsg struct {
 	res  probeResult
 }
 
+const autoRefreshEvery = 5 * time.Second
+
+type tickMsg time.Time
+
+type healthState struct {
+	dnsOK   bool
+	caddyOK bool
+	httpsOK bool
+	altOK   bool
+}
+
+type healthMsg healthState
+
+type logPreviewMsg struct {
+	name  string
+	lines []string
+	err   error
+}
+
+type actionKind int
+
+const (
+	actionNone actionKind = iota
+	actionUnlink
+	actionSecure
+)
+
+type confirmState struct {
+	kind actionKind
+	site site.Resolved
+	text string
+}
+
+type rootEditState struct {
+	site  site.Resolved
+	value string
+	err   string
+}
+
+type sortMode int
+
+const (
+	sortName sortMode = iota
+	sortProblems
+	sortLatency
+	sortKind
+)
+
+func (s sortMode) next() sortMode { return (s + 1) % 4 }
+func (s sortMode) label() string {
+	return [...]string{"name", "problems", "latency", "kind"}[s]
+}
+
 type secureFilter int
 
 const (
@@ -122,11 +177,12 @@ const (
 	kindAll kindFilter = iota
 	kindPHP
 	kindStatic
+	kindProxy
 )
 
-func (k kindFilter) next() kindFilter { return (k + 1) % 3 }
+func (k kindFilter) next() kindFilter { return (k + 1) % 4 }
 func (k kindFilter) label() string {
-	return [...]string{"", "php", "static"}[k]
+	return [...]string{"", "php", "static", "proxy"}[k]
 }
 
 type codeFilter int
@@ -151,28 +207,41 @@ type filters struct {
 	kind        kindFilter
 	code        codeFilter
 	missingOnly bool
+	problemOnly bool
 	search      string
 }
 
 func (f filters) any() bool {
-	return f.secure != secAll || f.kind != kindAll || f.code != codeAll || f.missingOnly || f.search != ""
+	return f.secure != secAll || f.kind != kindAll || f.code != codeAll || f.missingOnly || f.problemOnly || f.search != ""
 }
 
 type model struct {
 	sites     []site.Resolved
+	links     map[string]site.Link
 	results   map[string]probeResult // missing key = pending
 	docExists map[string]bool
+	logs      map[string][]string
+	health    healthState
+	collapsed map[string]bool
 	cursor    int
 	offset    int
 	width     int
 	height    int
 	filt      filters
+	sort      sortMode
 	searching bool // true while user is typing into the search box
+	help      bool
+	auto      bool
+	status    string
+	confirm   *confirmState
+	rootEdit  *rootEditState
 }
 
 // --- Init / Update -------------------------------------------------------
 
-func (m model) Init() tea.Cmd { return m.probeAll() }
+func (m model) Init() tea.Cmd {
+	return tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+}
 
 func (m model) probeAll() tea.Cmd {
 	cmds := make([]tea.Cmd, 0, len(m.sites))
@@ -201,6 +270,81 @@ func probeCmd(name string) tea.Cmd {
 	}
 }
 
+func healthCmd() tea.Cmd {
+	return func() tea.Msg {
+		return healthMsg(collectHealth())
+	}
+}
+
+func collectHealth() healthState {
+	return healthState{
+		dnsOK:   portBound("127.0.0.1:1053"),
+		caddyOK: systemdUserActive("hostr-caddy.service"),
+		httpsOK: portBound("127.0.0.1:443") || portBound(":443"),
+		altOK:   portBound("127.0.0.1:8443") || portBound(":8443"),
+	}
+}
+
+func systemdUserActive(unit string) bool {
+	out, _ := exec.Command("systemctl", "--user", "is-active", unit).Output()
+	return strings.TrimSpace(string(out)) == "active"
+}
+
+func openSite(name string) error {
+	bin, err := os.Executable()
+	if err != nil {
+		bin = "hostr"
+	}
+	return exec.Command(bin, "open", name).Start()
+}
+
+func refreshTickCmd() tea.Cmd {
+	return tea.Tick(autoRefreshEvery, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func (m model) logPreviewSelected() tea.Cmd {
+	sel := m.selected()
+	if sel == nil {
+		return nil
+	}
+	return logPreviewCmd(*sel, 5)
+}
+
+func logPreviewCmd(s site.Resolved, n int) tea.Cmd {
+	return func() tea.Msg {
+		lines, err := readLogPreview(s, n)
+		return logPreviewMsg{name: s.Name, lines: lines, err: err}
+	}
+}
+
+func readLogPreview(s site.Resolved, n int) ([]string, error) {
+	files := []string{filepath.Join(paths.LogDir(), s.Name+".log")}
+	if s.Kind == site.KindPHP && s.PHP != "" {
+		files = append(files, filepath.Join(paths.LogDir(), "php-fpm-"+s.PHP+".log"))
+	}
+	out := []string{}
+	for _, file := range files {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			continue
+		}
+		b, err := exec.Command("tail", "-n", strconv.Itoa(n), file).Output()
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(strings.TrimRight(string(b), "\n"), "\n") {
+			if line != "" {
+				out = append(out, filepath.Base(file)+": "+line)
+			}
+		}
+	}
+	if len(out) > n {
+		out = out[len(out)-n:]
+	}
+	return out, nil
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -211,7 +355,60 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case probeMsg:
 		m.results[msg.name] = msg.res
 		return m, nil
+	case healthMsg:
+		m.health = healthState(msg)
+		return m, nil
+	case logPreviewMsg:
+		if msg.err == nil && msg.name != "" {
+			m.logs[msg.name] = msg.lines
+		}
+		return m, nil
+	case tickMsg:
+		if !m.auto {
+			return m, nil
+		}
+		if err := m.reloadSites(); err != nil {
+			m.status = err.Error()
+		}
+		m.results = map[string]probeResult{}
+		m.docExists = checkDocs(m.sites)
+		return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected(), refreshTickCmd())
 	case tea.KeyMsg:
+		if m.help {
+			switch msg.String() {
+			case "?", "esc":
+				m.help = false
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+		if m.confirm != nil {
+			switch msg.String() {
+			case "y", "enter":
+				return m.runConfirmedAction()
+			case "n", "esc":
+				m.confirm = nil
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+		if m.rootEdit != nil {
+			switch msg.Type {
+			case tea.KeyEsc:
+				m.rootEdit = nil
+			case tea.KeyEnter:
+				return m.commitRootEdit()
+			case tea.KeyBackspace:
+				if len(m.rootEdit.value) > 0 {
+					m.rootEdit.value = m.rootEdit.value[:len(m.rootEdit.value)-1]
+				}
+			case tea.KeyRunes, tea.KeySpace:
+				m.rootEdit.value += string(msg.Runes)
+			}
+			return m, nil
+		}
 		// search-input mode: capture keystrokes into the filter string
 		if m.searching {
 			switch msg.Type {
@@ -236,39 +433,47 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "?":
+			m.help = true
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
 			}
 			m.fixOffset()
+			return m, m.logPreviewSelected()
 		case "down", "j":
 			if m.cursor < m.filteredLen()-1 {
 				m.cursor++
 			}
 			m.fixOffset()
+			return m, m.logPreviewSelected()
 		case "g", "home":
 			m.cursor, m.offset = 0, 0
+			return m, m.logPreviewSelected()
 		case "G", "end":
 			m.cursor = m.filteredLen() - 1
 			if m.cursor < 0 {
 				m.cursor = 0
 			}
 			m.fixOffset()
+			return m, m.logPreviewSelected()
 		case "pgup":
 			m.cursor -= m.visibleRows()
 			if m.cursor < 0 {
 				m.cursor = 0
 			}
 			m.fixOffset()
+			return m, m.logPreviewSelected()
 		case "pgdown":
 			m.cursor += m.visibleRows()
 			if m.cursor >= m.filteredLen() {
 				m.cursor = m.filteredLen() - 1
 			}
 			m.fixOffset()
+			return m, m.logPreviewSelected()
 		case "o", "enter":
 			if sel := m.selected(); sel != nil {
-				_ = exec.Command("xdg-open", siteURL(sel.Name)).Start()
+				_ = openSite(sel.Name)
 			}
 		case "l":
 			if sel := m.selected(); sel != nil {
@@ -282,25 +487,85 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 		case "r":
+			if err := m.reloadSites(); err != nil {
+				m.status = err.Error()
+				return m, nil
+			}
 			m.results = map[string]probeResult{}
 			m.docExists = checkDocs(m.sites)
-			return m, m.probeAll()
+			m.status = "refreshed"
+			return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+		case "a":
+			m.auto = !m.auto
+			if m.auto {
+				m.status = "auto refresh on"
+				return m, refreshTickCmd()
+			}
+			m.status = "auto refresh off"
+		case "!":
+			m.filt.problemOnly = !m.filt.problemOnly
+			m.resetCursor()
+			return m, m.logPreviewSelected()
+		case "z":
+			m.sort = m.sort.next()
+			m.status = "sort: " + m.sort.label()
+			m.resetCursor()
+			return m, m.logPreviewSelected()
+		case " ":
+			if root := m.selectedRoot(); root != "" {
+				if m.collapsed == nil {
+					m.collapsed = map[string]bool{}
+				}
+				m.collapsed[root] = !m.collapsed[root]
+				m.fixOffset()
+				return m, m.logPreviewSelected()
+			}
+		case "u":
+			if sel := m.selected(); sel != nil {
+				if !m.isExplicitLink(sel.Name) {
+					m.status = sel.Name + ".test is parked, not an explicit link"
+				} else {
+					m.confirm = &confirmState{kind: actionUnlink, site: *sel, text: "unlink " + sel.Name + ".test"}
+				}
+			}
+		case "S":
+			if sel := m.selected(); sel != nil {
+				if !m.isExplicitLink(sel.Name) {
+					m.status = sel.Name + ".test is parked, not an explicit link"
+				} else {
+					m.confirm = &confirmState{kind: actionSecure, site: *sel, text: "toggle HTTPS for " + sel.Name + ".test"}
+				}
+			}
+		case "R":
+			if sel := m.selected(); sel != nil {
+				if sel.Kind == site.KindProxy {
+					m.status = "proxy sites do not have a docroot"
+				} else {
+					m.rootEdit = &rootEditState{site: *sel}
+				}
+			}
 		// filters
 		case "s":
 			m.filt.secure = m.filt.secure.next()
 			m.resetCursor()
+			return m, m.logPreviewSelected()
 		case "t":
 			m.filt.kind = m.filt.kind.next()
 			m.resetCursor()
+			return m, m.logPreviewSelected()
 		case "c":
 			m.filt.code = m.filt.code.next()
 			m.resetCursor()
+			return m, m.logPreviewSelected()
 		case "m":
 			m.filt.missingOnly = !m.filt.missingOnly
 			m.resetCursor()
+			return m, m.logPreviewSelected()
 		case "x":
 			m.filt = filters{}
+			m.sort = sortName
 			m.resetCursor()
+			return m, m.logPreviewSelected()
 		case "/":
 			m.searching = true
 		}
@@ -308,7 +573,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *model) resetCursor()    { m.cursor, m.offset = 0, 0 }
+func (m *model) resetCursor() { m.cursor, m.offset = 0, 0 }
 func (m *model) fixOffset() {
 	v := m.visibleRows()
 	if m.cursor < m.offset {
@@ -322,9 +587,143 @@ func (m *model) fixOffset() {
 	}
 }
 
+func (m model) runConfirmedAction() (tea.Model, tea.Cmd) {
+	if m.confirm == nil {
+		return m, nil
+	}
+	action := *m.confirm
+	m.confirm = nil
+	var err error
+	switch action.kind {
+	case actionUnlink:
+		err = mutateLink(action.site.Name, func(s *site.State, _ *site.Link) error {
+			if !site.RemoveLink(s, action.site.Name) {
+				return fmt.Errorf("%s is not an explicit link", action.site.Name)
+			}
+			return nil
+		})
+	case actionSecure:
+		err = mutateLink(action.site.Name, func(_ *site.State, l *site.Link) error {
+			l.Secure = !l.Secure
+			return nil
+		})
+	}
+	if err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	if err := m.reloadSites(); err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	m.results = map[string]probeResult{}
+	m.status = "updated " + action.site.Name + ".test"
+	return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+}
+
+func (m model) commitRootEdit() (tea.Model, tea.Cmd) {
+	if m.rootEdit == nil {
+		return m, nil
+	}
+	edit := *m.rootEdit
+	root := strings.TrimSpace(edit.value)
+	if root != "" {
+		root = filepath.Clean(root)
+	}
+	err := mutateRoot(edit.site, root)
+	if err != nil {
+		m.rootEdit.err = err.Error()
+		return m, nil
+	}
+	m.rootEdit = nil
+	if err := m.reloadSites(); err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+	m.results = map[string]probeResult{}
+	m.status = "updated root for " + edit.site.Name + ".test"
+	return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+}
+
+func (m *model) reloadSites() error {
+	st, err := site.Load()
+	if err != nil {
+		return err
+	}
+	m.sites = st.Resolve()
+	m.links = linkMap(st)
+	if m.cursor >= m.filteredLen() {
+		m.cursor = m.filteredLen() - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.docExists = checkDocs(m.sites)
+	m.fixOffset()
+	return nil
+}
+
+func linkMap(st *site.State) map[string]site.Link {
+	out := map[string]site.Link{}
+	if st == nil {
+		return out
+	}
+	for _, l := range st.Links {
+		out[l.Name] = l
+	}
+	return out
+}
+
+func mutateLink(name string, fn func(*site.State, *site.Link) error) error {
+	st, err := site.Load()
+	if err != nil {
+		return err
+	}
+	for i := range st.Links {
+		if st.Links[i].Name == name {
+			if err := fn(st, &st.Links[i]); err != nil {
+				return err
+			}
+			return saveWriteReload(st)
+		}
+	}
+	return fmt.Errorf("%s is not an explicit link", name)
+}
+
+func mutateRoot(s site.Resolved, root string) error {
+	if s.Kind == site.KindProxy {
+		return fmt.Errorf("proxy sites do not have a docroot")
+	}
+	st, err := site.Load()
+	if err != nil {
+		return err
+	}
+	for i := range st.Links {
+		if st.Links[i].Name == s.Name {
+			st.Links[i].Root = root
+			return saveWriteReload(st)
+		}
+	}
+	site.AddLink(st, site.Link{Name: s.Name, Path: s.Path, Root: root, Secure: s.Secure})
+	return saveWriteReload(st)
+}
+
+func saveWriteReload(st *site.State) error {
+	if err := site.Save(st); err != nil {
+		return err
+	}
+	if err := site.WriteFragments(st.Resolve()); err != nil {
+		return err
+	}
+	return site.ReloadCaddy()
+}
+
 // --- Filtering -----------------------------------------------------------
 
 func (m model) matches(s site.Resolved) bool {
+	if m.filt.problemOnly && !m.isProblem(s) {
+		return false
+	}
 	switch m.filt.secure {
 	case secYes:
 		if !s.Secure {
@@ -342,6 +741,10 @@ func (m model) matches(s site.Resolved) bool {
 		}
 	case kindStatic:
 		if s.Kind != site.KindStatic {
+			return false
+		}
+	case kindProxy:
+		if s.Kind != site.KindProxy {
 			return false
 		}
 	}
@@ -383,6 +786,43 @@ func (m model) matches(s site.Resolved) bool {
 	return true
 }
 
+func (m model) isProblem(s site.Resolved) bool {
+	if s.Kind != site.KindProxy && !m.docExists[s.Name] {
+		return true
+	}
+	res, has := m.results[s.Name]
+	return has && (res.code == -1 || res.code >= 400)
+}
+
+func (m model) problemReasons(s site.Resolved) []string {
+	reasons := []string{}
+	if s.Kind != site.KindProxy && !m.docExists[s.Name] {
+		reasons = append(reasons, "missing docroot")
+	}
+	res, has := m.results[s.Name]
+	if !has {
+		return reasons
+	}
+	switch {
+	case res.code == -1:
+		reasons = append(reasons, "probe error")
+	case res.code >= 500:
+		reasons = append(reasons, "HTTP "+strconv.Itoa(res.code))
+	case res.code >= 400:
+		reasons = append(reasons, "HTTP "+strconv.Itoa(res.code))
+	}
+	return reasons
+}
+
+func (m model) isExplicitLink(name string) bool {
+	_, ok := m.links[name]
+	return ok
+}
+
+func (m model) canChangeRoot(s site.Resolved) bool {
+	return s.Kind != site.KindProxy
+}
+
 func (m model) filtered() []site.Resolved {
 	if !m.filt.any() {
 		return m.sites
@@ -400,10 +840,18 @@ func (m model) filtered() []site.Resolved {
 // child) or a synthetic group header used when the parent matches no filter
 // but its children do.
 type displayItem struct {
-	site     *site.Resolved // nil = synthetic header
-	isChild  bool
-	isLast   bool   // last child in its group (for tree-corner rendering)
-	rootName string // populated for synthetic
+	site       *site.Resolved // nil = synthetic header
+	isChild    bool
+	isLast     bool   // last child in its group (for tree-corner rendering)
+	rootName   string // populated for synthetic
+	collapsed  bool
+	childCount int
+}
+
+type siteGroup struct {
+	root     string
+	parent   *site.Resolved
+	children []site.Resolved
 }
 
 // rootOf returns the last dot-segment of a site name. "app.affiliate" → "affiliate".
@@ -418,18 +866,13 @@ func rootOf(name string) string {
 // All grouping is done by *parent root domain*, with filtering applied
 // independently to parents and children.
 func (m model) displayItems() []displayItem {
-	type group struct {
-		root     string
-		parent   *site.Resolved
-		children []site.Resolved
-	}
-	groups := map[string]*group{}
+	groups := map[string]*siteGroup{}
 	roots := []string{}
 	for _, s := range m.sites {
 		r := rootOf(s.Name)
 		g, ok := groups[r]
 		if !ok {
-			g = &group{root: r}
+			g = &siteGroup{root: r}
 			groups[r] = g
 			roots = append(roots, r)
 		}
@@ -440,7 +883,9 @@ func (m model) displayItems() []displayItem {
 			g.children = append(g.children, s)
 		}
 	}
-	sort.Strings(roots)
+	sort.SliceStable(roots, func(i, j int) bool {
+		return m.rootLess(groups[roots[i]], groups[roots[j]])
+	})
 
 	out := []displayItem{}
 	for _, r := range roots {
@@ -458,13 +903,17 @@ func (m model) displayItems() []displayItem {
 		if parent == nil && len(visibleChildren) == 0 {
 			continue
 		}
-		sort.Slice(visibleChildren, func(i, j int) bool {
-			return visibleChildren[i].Name < visibleChildren[j].Name
+		sort.SliceStable(visibleChildren, func(i, j int) bool {
+			return m.siteLess(visibleChildren[i], visibleChildren[j])
 		})
+		collapsed := m.collapsed[r]
 		if parent != nil {
-			out = append(out, displayItem{site: parent})
+			out = append(out, displayItem{site: parent, collapsed: collapsed, childCount: len(visibleChildren)})
 		} else {
-			out = append(out, displayItem{rootName: r})
+			out = append(out, displayItem{rootName: r, collapsed: collapsed, childCount: len(visibleChildren)})
+		}
+		if collapsed {
+			continue
 		}
 		for i, c := range visibleChildren {
 			cp := c
@@ -478,6 +927,44 @@ func (m model) displayItems() []displayItem {
 	return out
 }
 
+func (m model) rootLess(a, b *siteGroup) bool {
+	return m.siteLess(groupSortSite(a), groupSortSite(b))
+}
+
+func groupSortSite(g *siteGroup) site.Resolved {
+	if g.parent != nil {
+		return *g.parent
+	}
+	if len(g.children) > 0 {
+		return g.children[0]
+	}
+	return site.Resolved{Name: g.root}
+}
+
+func (m model) siteLess(a, b site.Resolved) bool {
+	switch m.sort {
+	case sortProblems:
+		ap, bp := m.isProblem(a), m.isProblem(b)
+		if ap != bp {
+			return ap
+		}
+	case sortLatency:
+		ar, ah := m.results[a.Name]
+		br, bh := m.results[b.Name]
+		if ah != bh {
+			return ah
+		}
+		if ah && bh && ar.latency != br.latency {
+			return ar.latency > br.latency
+		}
+	case sortKind:
+		if a.Kind != b.Kind {
+			return a.Kind < b.Kind
+		}
+	}
+	return a.Name < b.Name
+}
+
 func (m model) filteredLen() int { return len(m.displayItems()) }
 
 func (m model) selected() *site.Resolved {
@@ -486,6 +973,20 @@ func (m model) selected() *site.Resolved {
 		return nil
 	}
 	return items[m.cursor].site // nil for synthetic
+}
+
+func (m model) selectedRoot() string {
+	items := m.displayItems()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return ""
+	}
+	if items[m.cursor].rootName != "" {
+		return items[m.cursor].rootName
+	}
+	if items[m.cursor].site != nil {
+		return rootOf(items[m.cursor].site.Name)
+	}
+	return ""
 }
 
 func (m model) visibleRows() int {
@@ -509,23 +1010,135 @@ func (m model) View() string {
 	if m.width == 0 {
 		return "loading…"
 	}
+	if m.help {
+		return m.renderHelp()
+	}
 
-	lay := computeLayout(m.width)
+	tableWidth, inspectorWidth := m.panelWidths()
+	body := m.renderTable(tableWidth)
+	if inspectorWidth > 0 {
+		body = joinColumns(body, m.renderInspector(inspectorWidth, m.visibleRows()+1), tableWidth, "  "+ruleStyle.Render("│")+" ")
+	}
 
-	// Banner — bold purple HOSTR with heavy bars on either side, then a tagline.
-	// No background color so it renders identically in every terminal theme.
+	// Adaptive footer — drop hints from the right until it fits.
+	footer := footerStyle.Render("  " + fitJoin(m.width-2, " · ",
+		"↑↓ move",
+		"o open",
+		"l logs",
+		"/ search",
+		"s/t/c/m filters",
+		"! problems",
+		"z sort",
+		"space fold",
+		"? help",
+		"r refresh",
+		"x clear",
+		"q quit",
+	))
+
+	lines := []string{
+		m.renderBanner(), m.summaryLine(), m.filterLine(),
+		strings.TrimRight(body, "\n"),
+		footer,
+	}
+	if prompt := m.promptLine(); prompt != "" {
+		lines = append(lines, prompt)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m model) promptLine() string {
+	switch {
+	case m.confirm != nil:
+		return modalBox("CONFIRM", []string{
+			warnStyle.Render(m.confirm.text + "?"),
+			dimStyle.Render("y/enter confirm · n/esc cancel"),
+		}, m.width)
+	case m.rootEdit != nil:
+		lines := []string{
+			chipStyle.Render("root " + m.rootEdit.site.Name + ".test"),
+			m.rootEdit.value + searchStyle.Render("▏"),
+			dimStyle.Render("enter save · empty clears override · esc cancel"),
+		}
+		if m.rootEdit.err != "" {
+			lines = append(lines, errStyle.Render(m.rootEdit.err))
+		}
+		return modalBox("CHANGE ROOT", lines, m.width)
+	default:
+		return ""
+	}
+}
+
+func (m model) renderHelp() string {
+	lines := []string{
+		m.renderBanner(),
+		"",
+		headerStyle.Render("KEYS"),
+		"  ↑/↓ or j/k    move selection",
+		"  g/G           top / bottom",
+		"  pgup/pgdown   page",
+		"  o or enter    open selected site",
+		"  l             tail full logs",
+		"  r             refresh state, probes, health, logs",
+		"  a             toggle auto-refresh",
+		"  z             cycle sort mode",
+		"  space         collapse or expand the selected root",
+		"  /             search",
+		"  x             clear filters",
+		"  q             quit",
+		"",
+		headerStyle.Render("FILTERS"),
+		"  s             cycle HTTPS",
+		"  t             cycle kind",
+		"  c             cycle status code",
+		"  m             missing docroots",
+		"  !             problems only",
+		"",
+		headerStyle.Render("ACTIONS"),
+		"  u             unlink selected explicit link",
+		"  S             toggle HTTPS for selected explicit link",
+		"  R             change or clear docroot override",
+		"",
+	}
+	return strings.Join([]string{m.renderBanner(), modalBox("HELP", lines[2:], m.width)}, "\n")
+}
+
+func (m model) panelWidths() (int, int) {
+	if m.width < 116 {
+		return m.width, 0
+	}
+	inspector := m.width * 38 / 100
+	if inspector < 44 {
+		inspector = 44
+	}
+	if inspector > 64 {
+		inspector = 64
+	}
+	separator := 4
+	table := m.width - inspector - separator
+	if table < 68 {
+		return m.width, 0
+	}
+	return table, inspector
+}
+
+func (m model) renderBanner() string {
+	// Bold purple HOSTR with heavy bars; no background color, so terminal
+	// themes do not fight the title.
 	label := bannerStyle.Render("HOSTR")
 	tagline := taglineStyle.Render("local web dev server")
 	leadBars := ruleStyle.Render("━━━ ")
 	gap := ruleStyle.Render(" · ")
 	core := leadBars + label + gap + tagline + " "
-	visible := 4 + 5 + 3 + lipgloss.Width(tagline) + 1 // bars + HOSTR + " · " + tagline + trailing space
-	tailLen := m.width - visible - 1                   // 1 col leading space
+	visible := 4 + 5 + 3 + lipgloss.Width(tagline) + 1
+	tailLen := m.width - visible - 1
 	if tailLen < 0 {
 		tailLen = 0
 	}
-	titleLine := " " + core + ruleStyle.Render(strings.Repeat("━", tailLen))
+	return " " + core + ruleStyle.Render(strings.Repeat("━", tailLen))
+}
 
+func (m model) summaryLine() string {
 	all := m.sites
 	filt := m.filtered()
 	ok, warn, errC, pending, missing := 0, 0, 0, 0, 0
@@ -545,24 +1158,49 @@ func (m model) View() string {
 			missing++
 		}
 	}
-
-	// Line 1 — title + counts
 	missingPart := ""
 	if missing > 0 {
 		missingPart = fmt.Sprintf("  %s missing", warnStyle.Render(strconv.Itoa(missing)))
 	}
-	summary := fmt.Sprintf(" %d/%d sites    %s ok  %s warn  %s err  %s pending%s",
+	auto := ""
+	if m.auto {
+		auto = "  " + chipStyle.Render("auto 5s")
+	}
+	status := ""
+	if m.status != "" {
+		status = "  " + dimStyle.Render(truncate(m.status, 36))
+	}
+	return fmt.Sprintf(" %d/%d sites    %s ok  %s warn  %s err  %s pending%s    %s%s%s",
 		len(filt), len(all),
 		okStyle.Render(strconv.Itoa(ok)),
 		warnStyle.Render(strconv.Itoa(warn)),
 		errStyle.Render(strconv.Itoa(errC)),
 		dimStyle.Render(strconv.Itoa(pending)),
-		missingPart)
+		missingPart,
+		m.healthLine(),
+		auto,
+		status)
+}
 
-	// Line 2 — filter chips / search input
-	chips := m.filterLine()
+func (m model) healthLine() string {
+	parts := []string{
+		healthToken("dns", m.health.dnsOK),
+		healthToken("caddy", m.health.caddyOK),
+		healthToken("443", m.health.httpsOK),
+		healthToken("8443", m.health.altOK),
+	}
+	return strings.Join(parts, " ")
+}
 
-	// Header (leading 2 cols reserved for the cursor marker on body rows)
+func healthToken(label string, ok bool) string {
+	if ok {
+		return okStyle.Render(label + ":ok")
+	}
+	return errStyle.Render(label + ":down")
+}
+
+func (m model) renderTable(width int) string {
+	lay := computeLayout(width)
 	headParts := []string{pad("NAME", lay.nameW), pad("HTTPS", lay.httpsW)}
 	if lay.showKind {
 		headParts = append(headParts, pad("KIND", lay.kindW))
@@ -577,67 +1215,124 @@ func (m model) View() string {
 	if lay.showDoc {
 		headParts = append(headParts, pad("DOCROOT", lay.docW))
 	}
-	header := "  " + headerStyle.Render(strings.Join(headParts, ""))
 
-	// Body
 	items := m.displayItems()
 	var body strings.Builder
+	body.WriteString("  " + headerStyle.Render(strings.Join(headParts, "")))
+	body.WriteString("\n")
 	if len(items) == 0 {
 		body.WriteString(dimStyle.Render("  no sites match the current filters"))
 		body.WriteString("\n")
-	} else {
-		visible := m.visibleRows()
-		end := m.offset + visible
-		if end > len(items) {
-			end = len(items)
-		}
-		for i := m.offset; i < end; i++ {
-			it := items[i]
-			var content string
-			if it.site == nil {
-				content = m.renderSynthetic(it.rootName, lay)
-			} else {
-				content = m.renderRow(*it.site, it.isChild, it.isLast, lay)
-			}
-			var marker string
-			if i == m.cursor {
-				// Bright chevron at column 0 — bg-independent, so it stays visible
-				// even where inner ANSI resets eat the selected-row background.
-				marker = cursorStyle.Render("❯ ")
-			} else {
-				marker = "  "
-			}
-			line := marker + content
-			if i == m.cursor {
-				line = selectedStyle.Render(line)
-			}
-			body.WriteString(line)
-			body.WriteString("\n")
-		}
-		if len(items) > visible {
-			body.WriteString(dimStyle.Render(fmt.Sprintf("  %d–%d of %d", m.offset+1, end, len(items))))
-			body.WriteString("\n")
-		}
+		return body.String()
 	}
 
-	// Adaptive footer — drop hints from the right until it fits.
-	footer := footerStyle.Render("  " + fitJoin(m.width-2, " · ",
-		"↑↓ move",
-		"o open",
-		"l logs",
-		"/ search",
-		"s/t/c/m filter",
-		"r refresh",
-		"x clear",
-		"g/G top/bot",
-		"q quit",
-	))
+	visible := m.visibleRows()
+	end := m.offset + visible
+	if end > len(items) {
+		end = len(items)
+	}
+	for i := m.offset; i < end; i++ {
+		it := items[i]
+		var content string
+		if it.site == nil {
+			content = m.renderSynthetic(it.rootName, it.collapsed, it.childCount, lay)
+		} else {
+			content = m.renderRow(*it.site, it.isChild, it.isLast, it.collapsed, it.childCount, lay)
+		}
+		marker := "  "
+		if i == m.cursor {
+			marker = cursorStyle.Render("❯ ")
+		}
+		line := marker + content
+		if i == m.cursor {
+			line = selectedStyle.Render(line)
+		}
+		body.WriteString(line)
+		body.WriteString("\n")
+	}
+	if len(items) > visible {
+		body.WriteString(dimStyle.Render(fmt.Sprintf("  %d–%d of %d", m.offset+1, end, len(items))))
+		body.WriteString("\n")
+	}
+	return body.String()
+}
 
-	return strings.Join([]string{
-		titleLine, summary, chips, header,
-		strings.TrimRight(body.String(), "\n"), // body builds rows with trailing "\n"; join adds another, which scrolls line 1 off
-		footer,
-	}, "\n")
+func (m model) renderInspector(width, height int) string {
+	lines := []string{headerStyle.Render(pad("SELECTED SITE", width))}
+	it := m.selectedItem()
+	if it.site == nil {
+		if it.rootName == "" {
+			lines = append(lines, "", dimStyle.Render("No site selected."))
+		} else {
+			lines = append(lines,
+				"",
+				chipStyle.Render(it.rootName+".test"),
+				dimStyle.Render("Children are visible because they match the current filters."),
+			)
+		}
+		return padLines(lines, width, height)
+	}
+
+	s := *it.site
+	lines = append(lines,
+		"",
+		chipStyle.Render(truncate(s.Name+".test", width)),
+		m.inspectorKV("url", siteURLLabel(s.Name), width),
+		m.inspectorKV("kind", string(s.Kind), width),
+		m.inspectorKV("https", yesNo(s.Secure), width),
+	)
+	if s.Kind == site.KindPHP {
+		lines = append(lines, m.inspectorKV("php", blankDash(s.PHP), width))
+	}
+	if s.Kind == site.KindProxy {
+		lines = append(lines, m.inspectorKV("target", s.Target, width))
+	} else {
+		lines = append(lines,
+			m.inspectorKV("path", blankDash(s.Path), width),
+			m.inspectorKV("docroot", s.Docroot, width),
+			m.inspectorKV("docroot ok", yesNo(m.docExists[s.Name]), width),
+		)
+	}
+	lines = append(lines,
+		m.inspectorKV("probe", m.probeLabel(s.Name), width),
+		m.inspectorKV("fragment", filepath.Join(paths.DataDir(), "sites", s.Name+".caddy"), width),
+	)
+	if reasons := m.problemReasons(s); len(reasons) > 0 {
+		lines = append(lines, m.inspectorKV("problem", strings.Join(reasons, ", "), width))
+	}
+	if logLines := m.logs[s.Name]; len(logLines) > 0 {
+		lines = append(lines, "", headerStyle.Render(pad("LOGS", width)))
+		for _, line := range logLines {
+			lines = append(lines, dimStyle.Render(truncate(line, width)))
+		}
+	}
+	lines = append(lines,
+		"",
+		headerStyle.Render(pad("ACTIONS", width)),
+		actionLine("o", "open in browser", width),
+		actionLine("l", "tail logs", width),
+		actionLine("r", "refresh probes", width),
+		actionLine("a", "toggle auto-refresh", width),
+		actionLine("z", "sort by "+m.sort.next().label(), width),
+		actionLine("space", "collapse group", width),
+		actionLine("!", "problems only", width),
+		actionLine("/", "search sites", width),
+		actionLineEnabled("u", "unlink", width, m.isExplicitLink(s.Name)),
+		actionLineEnabled("S", "toggle HTTPS", width, m.isExplicitLink(s.Name)),
+		actionLineEnabled("R", "change root", width, m.canChangeRoot(s)),
+	)
+	if !m.docExists[s.Name] && s.Kind != site.KindProxy {
+		lines = append(lines, actionLine("m", "show missing docroots", width))
+	}
+	return padLines(lines, width, height)
+}
+
+func (m model) selectedItem() displayItem {
+	items := m.displayItems()
+	if m.cursor < 0 || m.cursor >= len(items) {
+		return displayItem{}
+	}
+	return items[m.cursor]
 }
 
 // fitJoin packs as many parts as fit within width, joined by sep.
@@ -677,6 +1372,12 @@ func (m model) filterLine() string {
 	if m.filt.missingOnly {
 		parts = append(parts, "missing-docroot")
 	}
+	if m.filt.problemOnly {
+		parts = append(parts, "problems")
+	}
+	if m.sort != sortName {
+		parts = append(parts, "sort="+m.sort.label())
+	}
 	if m.filt.search != "" {
 		parts = append(parts, "search="+strconv.Quote(m.filt.search))
 	}
@@ -686,9 +1387,10 @@ func (m model) filterLine() string {
 	return " " + chipStyle.Render("filters:") + " " + strings.Join(parts, "  ")
 }
 
-func (m model) renderSynthetic(rootName string, lay layout) string {
-	name := pad(truncate(rootName+".test", lay.nameW-1), lay.nameW)
-	name = dimStyle.Render(name)
+func (m model) renderSynthetic(rootName string, collapsed bool, childCount int, lay layout) string {
+	prefix := groupMarker(collapsed, childCount)
+	nameText := prefix + truncate(rootName+".test", lay.nameW-lipgloss.Width(prefix)-1)
+	name := dimStyle.Render(pad(nameText, lay.nameW))
 	restW := lay.httpsW + lay.statW
 	if lay.showKind {
 		restW += lay.kindW
@@ -706,7 +1408,17 @@ func (m model) renderSynthetic(rootName string, lay layout) string {
 	return name + rest
 }
 
-func (m model) renderRow(s site.Resolved, isChild, isLast bool, lay layout) string {
+func groupMarker(collapsed bool, childCount int) string {
+	if childCount == 0 {
+		return ""
+	}
+	if collapsed {
+		return "▸ "
+	}
+	return "▾ "
+}
+
+func (m model) renderRow(s site.Resolved, isChild, isLast, collapsed bool, childCount int, lay layout) string {
 	displayName := s.Name + ".test"
 	prefix := ""
 	prefixLen := 0
@@ -717,6 +1429,9 @@ func (m model) renderRow(s site.Resolved, isChild, isLast bool, lay layout) stri
 		}
 		prefix = "  " + corner + " "
 		prefixLen = 5 // "  X─ " is 5 visible cols
+	} else {
+		prefix = groupMarker(collapsed, childCount)
+		prefixLen = lipgloss.Width(prefix)
 	}
 	truncated := truncate(displayName, lay.nameW-prefixLen-1)
 	plain := prefix + truncated
@@ -796,9 +1511,156 @@ func (m model) renderRow(s site.Resolved, isChild, isLast bool, lay layout) stri
 	return strings.Join(parts, "")
 }
 
+func (m model) inspectorKV(label, value string, width int) string {
+	const labelW = 11
+	if value == "" {
+		value = "-"
+	}
+	valueW := width - labelW
+	if valueW < 1 {
+		valueW = 1
+	}
+	return dimStyle.Render(pad(label, labelW)) + truncate(value, valueW)
+}
+
+func (m model) probeLabel(name string) string {
+	res, has := m.results[name]
+	if !has {
+		return "pending"
+	}
+	if res.code == -1 {
+		return "ERR " + formatDur(res.latency)
+	}
+	return strconv.Itoa(res.code) + " " + formatDur(res.latency)
+}
+
+func siteURLLabel(name string) string {
+	return fmt.Sprintf("https://%s.test", name)
+}
+
+func yesNo(ok bool) string {
+	if ok {
+		return "yes"
+	}
+	return "no"
+}
+
+func blankDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+func actionLine(key, label string, width int) string {
+	keyText := chipStyle.Render(key)
+	plain := key + " " + label
+	if lipgloss.Width(plain) > width {
+		label = truncate(label, width-2)
+	}
+	return keyText + " " + label
+}
+
+func actionLineEnabled(key, label string, width int, enabled bool) string {
+	if enabled {
+		return actionLine(key, label, width)
+	}
+	plain := key + " " + label
+	if lipgloss.Width(plain) > width {
+		label = truncate(label, width-2)
+	}
+	return dimStyle.Render(plain)
+}
+
+func padLines(lines []string, width, height int) string {
+	if height < 1 {
+		height = 1
+	}
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	for len(lines) < height {
+		lines = append(lines, "")
+	}
+	for i, line := range lines {
+		lines[i] = padVisible(line, width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func modalBox(title string, lines []string, termWidth int) string {
+	contentW := 0
+	for _, line := range lines {
+		if w := lipgloss.Width(line); w > contentW {
+			contentW = w
+		}
+	}
+	if titleW := lipgloss.Width(title) + 2; titleW > contentW {
+		contentW = titleW
+	}
+	maxW := termWidth - 6
+	if maxW < 24 {
+		maxW = 24
+	}
+	if contentW > maxW {
+		contentW = maxW
+	}
+	topLabel := " " + title + " "
+	topFill := contentW - lipgloss.Width(topLabel)
+	if topFill < 0 {
+		topFill = 0
+	}
+	out := []string{
+		ruleStyle.Render("┌" + topLabel + strings.Repeat("─", topFill) + "┐"),
+	}
+	for _, line := range lines {
+		out = append(out, ruleStyle.Render("│")+padVisible(truncate(line, contentW), contentW)+ruleStyle.Render("│"))
+	}
+	out = append(out, ruleStyle.Render("└"+strings.Repeat("─", contentW)+"┘"))
+	box := strings.Join(out, "\n")
+	if termWidth <= contentW+2 {
+		return box
+	}
+	padLeft := (termWidth - contentW - 2) / 2
+	prefix := strings.Repeat(" ", padLeft)
+	for i, line := range out {
+		out[i] = prefix + line
+	}
+	return strings.Join(out, "\n")
+}
+
+func joinColumns(left, right string, leftWidth int, sep string) string {
+	lLines := strings.Split(strings.TrimRight(left, "\n"), "\n")
+	rLines := strings.Split(strings.TrimRight(right, "\n"), "\n")
+	n := len(lLines)
+	if len(rLines) > n {
+		n = len(rLines)
+	}
+	out := make([]string, n)
+	for i := 0; i < n; i++ {
+		l, r := "", ""
+		if i < len(lLines) {
+			l = lLines[i]
+		}
+		if i < len(rLines) {
+			r = rLines[i]
+		}
+		out[i] = padVisible(l, leftWidth) + sep + r
+	}
+	return strings.Join(out, "\n")
+}
+
 // --- helpers -------------------------------------------------------------
 
 func pad(s string, w int) string {
+	visible := lipgloss.Width(s)
+	if visible >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-visible)
+}
+
+func padVisible(s string, w int) string {
 	visible := lipgloss.Width(s)
 	if visible >= w {
 		return s
@@ -866,7 +1728,11 @@ func Run() error {
 	}
 	m := model{
 		sites:     sites,
+		links:     linkMap(s),
 		results:   map[string]probeResult{},
+		logs:      map[string][]string{},
+		health:    collectHealth(),
+		collapsed: map[string]bool{},
 		docExists: checkDocs(sites),
 	}
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
@@ -883,7 +1749,11 @@ func DebugRender(width int) string {
 	sites := s.Resolve()
 	m := model{
 		sites:     sites,
+		links:     linkMap(s),
 		results:   map[string]probeResult{},
+		logs:      map[string][]string{},
+		health:    collectHealth(),
+		collapsed: map[string]bool{},
 		docExists: checkDocs(sites),
 		width:     width,
 		height:    40,

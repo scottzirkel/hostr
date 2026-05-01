@@ -67,7 +67,7 @@ hostr cutover --rollback        # reverse it
 ## Daily commands
 
 ```
-hostr tui                       # interactive dashboard (see Keys below)
+hostr                           # interactive dashboard (see TUI below)
 hostr status                    # flat table — all sites + resolved settings
 hostr open [name]               # xdg-open https://<name>.test (port-aware)
 hostr logs <name>               # tail Caddy access + PHP errors for one site
@@ -195,7 +195,9 @@ WebSocket upgrades, so HMR works.
 
 ## TUI
 
-`hostr tui` opens a Bubble Tea dashboard with subdomain grouping, live HTTP probes, filters, and per-site actions.
+`hostr` opens a Bubble Tea dashboard with subdomain grouping, live HTTP probes,
+health status, log previews, filters, sorting, collapsible groups, and per-site
+actions. `hostr tui` remains as a hidden compatibility alias.
 
 | key | action |
 |---|---|
@@ -204,18 +206,30 @@ WebSocket upgrades, so HMR works.
 | `pgup` / `pgdn` | page |
 | `o` / Enter | open the highlighted site in the browser |
 | `l` | tail logs for the highlighted site (Caddy access + PHP errors) |
-| `r` | re-probe all sites |
+| `r` | reload state and re-probe all sites |
+| `a` | toggle auto-refresh |
+| `z` | cycle sort: name → problems → latency → kind |
+| Space | collapse / expand the selected parent group |
 | `/` | name search; type, Enter to lock, Esc to clear |
 | `s` | cycle HTTPS filter: all → secure → insecure |
 | `t` | cycle kind filter: all → php → static → proxy |
 | `c` | cycle status filter: all → 2xx → 3xx → 4xx → 5xx → err → pending |
 | `m` | toggle missing-docroot only |
+| `!` | toggle problems-only view |
+| `u` | unlink the highlighted explicit link after confirmation |
+| `S` | toggle HTTPS for the highlighted explicit link after confirmation |
+| `R` | change or clear the highlighted site's root override |
+| `?` | show the full keymap |
 | `x` | clear all filters |
 | `q` / Ctrl-C | quit |
 
-Layout reflows with the terminal — narrow widths drop KIND, LAT, DOCROOT in priority order. Wide terminals expand NAME and DOCROOT.
+Layout reflows with the terminal — narrow widths drop KIND, LAT, DOCROOT in
+priority order. Wide terminals split into a site table and selected-site
+inspector.
 
-Subdomains (`api.affiliate`, `app.affiliate`, …) group under their parent (`affiliate.test`) with tree-style indentation. Missing docroots get a red `✗` prefix.
+Subdomains (`api.affiliate`, `app.affiliate`, …) group under their parent
+(`affiliate.test`) with tree-style indentation. Missing docroots get a red `✗`
+prefix.
 
 ## Layout
 

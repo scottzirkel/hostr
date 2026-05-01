@@ -73,16 +73,7 @@ The initial release line was reconstructed from the first commits:
 - `v0.5.2`: purge safety guard and extra routing/migration coverage.
 - `v0.6.0`: routing, install, uninstall, cutover, rollback, and Valet migration coverage; documented systemd-networkd requirements, rollback resolver behavior, purge scope, and source/tag-only release policy.
 - `v0.7.0`: required dependency diagnostics fail fast in `hostr init`, install dependency guidance is distro-neutral, and `hostr doctor` preserves service-check failure details.
+- `v1.0.0`: stable Linux support contract, clearer doctor diagnostics, certificate trust troubleshooting, and completed DNS/port/certificate documentation.
+- `v1.1.0`: bare `hostr` launches the interactive dashboard; the TUI gains a split inspector, health strip, log previews, filters, sorting, collapsible groups, help/prompts, and inline site actions.
 
 ## Pending Release Notes
-
-### v1.0.0
-
-- Added clearer `hostr doctor` diagnostics for DNS failures and likely HTTPS
-  port ownership conflicts.
-- Improved certificate trust failure messages around missing Caddy roots and
-  failed `trust anchor` actions.
-- Documented the completed DNS, port, and certificate troubleshooting paths for
-  the stable v1 Linux support contract.
-- Marked the 1.0 roadmap complete and moved open-ended routing coverage
-  expansion to post-1.0 work.

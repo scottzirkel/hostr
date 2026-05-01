@@ -61,10 +61,6 @@ trying to become a full-stack desktop dev suite.
 
 ## Near-term after 1.0 (small, well-scoped)
 
-- **TUI: help overlay** — `?` opens a full keymap modal so the footer can stay short.
-- **TUI: auto-refresh** — re-probe every N seconds (off by default), toggle with a key.
-- **TUI: inline actions** — `u` unlink, `s` toggle secure, `R` change `--root` for the highlighted site without dropping to the CLI.
-- **TUI: filter by HTTPS column** — already by status/kind/secure; add a `proxy`-only quick filter (currently you can `t` cycle to it but the kind enum only has `php`/`static`).
 - **More routing edge coverage** — keep adding unusual parked-dir, linked-site,
   proxy, and path-combination cases as they appear.
 - **`hostr alias <existing> <new>`** — register additional names that resolve to the same site (multiple `.test` hostnames → one source dir/proxy/php config).
