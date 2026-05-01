@@ -495,6 +495,8 @@ func TestWriteFragmentsRendersProxySite(t *testing.T) {
 		"vite.test {",
 		"tls internal",
 		"reverse_proxy " + strconv.Quote("127.0.0.1:5173"),
+		"header_up Host {host}",
+		"header_up X-Forwarded-Proto {scheme}",
 		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "vite.log")),
 	} {
 		if !strings.Contains(content, want) {

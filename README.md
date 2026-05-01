@@ -86,6 +86,7 @@ routa php ini set 8.4 post_max_size 128M
 routa php ext list 8.4
 routa track / untrack / ignore / unignore / link / unlink / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
+routa dev [name]                # run a detected dev server and proxy it
 routa version                   # print version, commit, build date
 ```
 
@@ -196,6 +197,23 @@ routa proxy myapp 5173          # myapp.test → 127.0.0.1:5173, with HTTPS + We
 
 Targets accept `5173` (assumed `127.0.0.1:5173`), `:5173`, or `host:5173`. Caddy auto-handles
 WebSocket upgrades, so HMR works.
+
+## Running dev servers
+
+For process-backed apps, `routa dev` starts the app's normal dev server, waits
+for the port, and registers the same WebSocket-friendly reverse proxy:
+
+```bash
+cd ~/code/myapp
+routa dev                       # package.json dev, Rails, Phoenix, or Django
+routa dev api                   # serve as api.test instead of the directory name
+routa dev reverb --port 8080 -- php artisan reverb:start --host=127.0.0.1 --port=8080
+routa dev --name custom --port 3000 -- ./scripts/start-web
+```
+
+Detected defaults include package manager `dev` scripts, Rails on :3000,
+Phoenix on :4000, and Django on :8000. Pass `--port` for commands that do not
+print or bind a predictable port.
 
 ## TUI
 

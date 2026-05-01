@@ -381,7 +381,11 @@ const fragmentTmpl = `{{.SiteAddress}} {
 	# secure=false: HTTP only
 {{- end}}
 {{- if eq (printf "%s" .Kind) "proxy"}}
-	reverse_proxy {{.TargetCaddy}}
+	reverse_proxy {{.TargetCaddy}} {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
 {{- else}}
 	root * {{.DocrootCaddy}}
 	encode zstd gzip

@@ -76,5 +76,6 @@ The initial release line was reconstructed from the first commits:
 - `v1.0.0`: stable Linux support contract, clearer doctor diagnostics, certificate trust troubleshooting, and completed DNS/port/certificate documentation.
 - `v1.1.0`: bare `routa` launches the interactive dashboard; the TUI gains a split inspector, health strip, log previews, filters, sorting, collapsible groups, help/prompts, and inline site actions.
 - `v1.2.0`: project rename from hostr to routa, `track`/`untrack` commands with Valet-compatible aliases, ignored tracked-site support, static `public/` detection, and static SPA fallback routing.
+- `v1.3.0`: generic `routa dev` command for process-backed apps, detection for package.json dev scripts, Rails, Phoenix, and Django, port discovery, and WebSocket-friendly proxy forwarding headers.
 
 ## Pending Release Notes

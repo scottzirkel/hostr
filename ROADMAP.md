@@ -35,6 +35,8 @@ trying to become a full-stack desktop dev suite.
   - Custom roots, linked-site overrides, secure toggle rendering, and
     missing-docroot status output now have focused coverage.
   - Proxy targets now validate before state is saved or Caddy fragments render.
+  - `v1.3.0` added `routa dev` for process-backed apps, with dev-server
+    detection, port discovery, and WebSocket-friendly reverse proxy headers.
   - Site detection, parked directory resolution, proxy target validation, and
     Caddy fragment rendering have focused coverage for the v1 contract.
 - **Migration reliability**
@@ -76,7 +78,6 @@ trying to become a full-stack desktop dev suite.
   - **Redis** — single user-space instance.
   - **Mailpit** — SMTP catcher on :1025, web UI on :8025, optionally proxied as `mail.test`.
   - CLI shape: `routa db install mariadb 11`, `routa db start/stop/list`, `routa mail start`. TUI panel for these.
-- **Auto-proxy detection** — when a site's path has `package.json` with a recognized `dev` script, optionally run/proxy it: `routa dev <name>` runs `npm run dev`, finds the bound port, sets up a proxy automatically, tears down on exit.
 - **PHP extension management** — currently we ship the upstream "bulk" extension set; add `routa php ext list/enable/disable <ver> <ext>` for finer control. Static-php-cli supports custom builds — could fetch alternative variants.
 - **Xdebug toggle** — install xdebug-enabled PHP variant alongside, `routa php xdebug on/off <ver>` flips the loaded ini.
 
