@@ -10,28 +10,28 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/ca"
-	"github.com/scottzirkel/hostr/internal/caddyconf"
-	"github.com/scottzirkel/hostr/internal/paths"
-	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/routa/internal/ca"
+	"github.com/scottzirkel/routa/internal/caddyconf"
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 const phaseOneDNSPort = 1053
 
 var installCmd = &cobra.Command{
 	Use:   "install",
-	Short: "Provision hostr on alternate ports (DNS :1053, Caddy :8080/:8443)",
+	Short: "Provision routa on alternate ports (DNS :1053, Caddy :8080/:8443)",
 	Long: `install is non-destructive and idempotent. It:
-  - creates hostr's XDG directories
+  - creates routa's XDG directories
   - generates Caddyfile and systemd user units
   - installs Caddy's local root CA into the system trust store (sudo)
-  - starts hostr-dns and hostr-caddy on alternate ports
+  - starts routa-dns and routa-caddy on alternate ports
 
-Sites can be added with park/link. Verify with:
+Sites can be added with track/link. Verify with:
   dig @127.0.0.1 -p 1053 example.test
   curl -k https://example.test:8443
 
-When you're satisfied, run "hostr cutover" to swap to standard ports and DNS.`,
+When you're satisfied, run "routa cutover" to swap to standard ports and DNS.`,
 	RunE: runInstall,
 }
 
@@ -48,10 +48,10 @@ func runInstall(_ *cobra.Command, _ []string) error {
 		{"create directories", ensureDirs},
 		{"render Caddyfile", func() error { return caddyconf.Write(caddyconf.PhaseOne()) }},
 		{"write systemd user units", func() error { return systemd.WriteUserUnits(phaseOneDNSPort) }},
-		{"enable hostr-caddy", func() error { return systemd.EnableNow("hostr-caddy.service") }},
+		{"enable routa-caddy", func() error { return systemd.EnableNow("routa-caddy.service") }},
 		{"wait for Caddy admin API", waitForCaddyAdmin},
 		{"trust Caddy local CA (will sudo)", ca.Install},
-		{"enable hostr-dns", func() error { return systemd.EnableNow("hostr-dns.service") }},
+		{"enable routa-dns", func() error { return systemd.EnableNow("routa-dns.service") }},
 	}
 	for _, s := range steps {
 		fmt.Printf("→ %s\n", s.name)
@@ -62,9 +62,9 @@ func runInstall(_ *cobra.Command, _ []string) error {
 	fmt.Println()
 	fmt.Println("Done. Verify:")
 	fmt.Println("  dig @127.0.0.1 -p 1053 example.test")
-	fmt.Println("  systemctl --user status hostr-dns hostr-caddy")
+	fmt.Println("  systemctl --user status routa-dns routa-caddy")
 	fmt.Println()
-	fmt.Println("Note: system-wide *.test routing does not change until cutover. To test hostr's DNS")
+	fmt.Println("Note: system-wide *.test routing does not change until cutover. To test routa's DNS")
 	fmt.Println("specifically, query 127.0.0.1:1053 directly. Cutover swaps the system resolver.")
 	return nil
 }
@@ -80,7 +80,7 @@ func waitForCaddyAdmin() error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf("Caddy admin API at 127.0.0.1:2019 didn't come up within 8s — check `systemctl --user status hostr-caddy`")
+	return fmt.Errorf("Caddy admin API at 127.0.0.1:2019 didn't come up within 8s — check `systemctl --user status routa-caddy`")
 }
 
 func checkInstallDependencies() error {

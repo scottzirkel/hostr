@@ -33,8 +33,8 @@ type Release struct {
 
 type Version struct{ Major, Minor, Patch int }
 
-func (v Version) String() string        { return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch) }
-func (v Version) MinorString() string   { return fmt.Sprintf("%d.%d", v.Major, v.Minor) }
+func (v Version) String() string      { return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch) }
+func (v Version) MinorString() string { return fmt.Sprintf("%d.%d", v.Major, v.Minor) }
 func (v Version) Less(o Version) bool {
 	if v.Major != o.Major {
 		return v.Major < o.Major

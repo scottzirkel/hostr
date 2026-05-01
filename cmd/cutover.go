@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/cutover"
+	"github.com/scottzirkel/routa/internal/cutover"
 )
 
 func perLinkDropinExists() bool {
-	matches, _ := filepath.Glob("/etc/systemd/network/*.network.d/hostr.conf")
+	matches, _ := filepath.Glob("/etc/systemd/network/*.network.d/routa.conf")
 	return len(matches) > 0
 }
 
@@ -22,16 +22,16 @@ var (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Swap hostr onto :80/:443 and route *.test through it",
-	Long: `cutover atomically swaps hostr onto standard HTTP/TLS ports and
+	Short: "Swap routa onto :80/:443 and route *.test through it",
+	Long: `cutover atomically swaps routa onto standard HTTP/TLS ports and
 system-wide .test routing. The destructive system changes (resolv.conf swap,
 systemd-resolved drop-in, port range, legacy service shutdown) are emitted as a single
-sudo-able shell block — copy and run it. Then re-run "hostr cutover" and it
+sudo-able shell block — copy and run it. Then re-run "routa cutover" and it
 will detect the changed state and finish the user-side swap (Caddy → :80/:443).
 
-  hostr cutover                # show plan + sudo block, or finalize if sudo done
-  hostr cutover --plan         # only show the plan, never finalize
-  hostr cutover --rollback     # show the reverse sudo block + revert Caddy
+  routa cutover                # show plan + sudo block, or finalize if sudo done
+  routa cutover --plan         # only show the plan, never finalize
+  routa cutover --rollback     # show the reverse sudo block + revert Caddy
 `,
 	RunE: runCutover,
 }
@@ -50,8 +50,8 @@ func runCutover(_ *cobra.Command, _ []string) error {
 	phase := cutover.Detect()
 	switch phase {
 	case cutover.PhaseTwo:
-		fmt.Println("Already in Phase 2 (hostr on :80/:443). Nothing to do.")
-		fmt.Println("To revert, run: hostr cutover --rollback")
+		fmt.Println("Already in Phase 2 (routa on :80/:443). Nothing to do.")
+		fmt.Println("To revert, run: routa cutover --rollback")
 		return nil
 	case cutover.PhasePartial:
 		fmt.Println("⚠  System is in a partial state (DNS swapped but Caddy still on :8443, or vice versa).")
@@ -76,7 +76,7 @@ func runCutover(_ *cobra.Command, _ []string) error {
 	// Detect what's already done so we know whether the user still needs the sudo block.
 	resolvDone := resolvIsSystemdStub()
 	perLinkDone := perLinkDropinExists()
-	sysctlDone := fileExists("/etc/sysctl.d/50-hostr.conf")
+	sysctlDone := fileExists("/etc/sysctl.d/50-routa.conf")
 	sudoDone := cutoverSystemSideApplied(resolvDone, perLinkDone, sysctlDone)
 
 	fmt.Println()
@@ -87,10 +87,10 @@ func runCutover(_ *cobra.Command, _ []string) error {
 		fmt.Println(divider)
 		fmt.Println()
 		if cutoverPlanOnly {
-			fmt.Println("(plan only — re-run `hostr cutover` after the sudo block to finalize)")
+			fmt.Println("(plan only — re-run `routa cutover` after the sudo block to finalize)")
 			return nil
 		}
-		fmt.Println("After the block runs, re-invoke: hostr cutover")
+		fmt.Println("After the block runs, re-invoke: routa cutover")
 		return nil
 	}
 
@@ -100,21 +100,21 @@ func runCutover(_ *cobra.Command, _ []string) error {
 	}
 
 	fmt.Println("Sudo step detected as applied. Finalizing user side:")
-	fmt.Println("→ stop hostr-caddy, swap to Phase 2 Caddyfile (ports 80/443), restart")
+	fmt.Println("→ stop routa-caddy, swap to Phase 2 Caddyfile (ports 80/443), restart")
 	if err := cutover.SwapToPhaseTwo(); err != nil {
 		return err
 	}
-	fmt.Println("✓ hostr-caddy bound :443")
+	fmt.Println("✓ routa-caddy bound :443")
 	fmt.Println()
 	fmt.Println("Cutover complete. Verify in a browser at https://<any>.test (no port).")
-	fmt.Println("Rollback: hostr cutover --rollback")
+	fmt.Println("Rollback: routa cutover --rollback")
 	return nil
 }
 
 func runRollback() error {
 	resolvSystemd := resolvIsSystemdStub()
 	perLink := perLinkDropinExists()
-	sysctl := fileExists("/etc/sysctl.d/50-hostr.conf")
+	sysctl := fileExists("/etc/sysctl.d/50-routa.conf")
 	systemSideStillApplied := rollbackSystemSideStillApplied(resolvSystemd, perLink, sysctl)
 
 	if systemSideStillApplied {
@@ -123,15 +123,15 @@ func runRollback() error {
 		fmt.Println(cutover.SudoRollbackBlock())
 		fmt.Println(divider)
 		fmt.Println()
-		fmt.Println("After the block runs, re-invoke: hostr cutover --rollback")
+		fmt.Println("After the block runs, re-invoke: routa cutover --rollback")
 		return nil
 	}
 
-	fmt.Println("System changes already reverted. Swapping hostr-caddy back to alt ports.")
+	fmt.Println("System changes already reverted. Swapping routa-caddy back to alt ports.")
 	if err := cutover.SwapToPhaseOne(); err != nil {
 		return err
 	}
-	fmt.Println("✓ hostr-caddy back on :8080/:8443. Legacy services can own the standard ports again.")
+	fmt.Println("✓ routa-caddy back on :8080/:8443. Legacy services can own the standard ports again.")
 	return nil
 }
 

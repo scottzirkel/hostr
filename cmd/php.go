@@ -12,14 +12,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/php"
-	"github.com/scottzirkel/hostr/internal/site"
-	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/routa/internal/php"
+	"github.com/scottzirkel/routa/internal/site"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 var phpCmd = &cobra.Command{
 	Use:                "php [args...]",
-	Short:              "Run hostr PHP for the current site, or manage installed PHP versions",
+	Short:              "Run routa PHP for the current site, or manage installed PHP versions",
 	Args:               cobra.ArbitraryArgs,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -29,7 +29,7 @@ var phpCmd = &cobra.Command{
 
 var composerCmd = &cobra.Command{
 	Use:                "composer [args...]",
-	Short:              "Run Composer with the hostr PHP version for the current site",
+	Short:              "Run Composer with the routa PHP version for the current site",
 	Args:               cobra.ArbitraryArgs,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,7 +39,7 @@ var composerCmd = &cobra.Command{
 
 var whichPHPCmd = &cobra.Command{
 	Use:   "which-php",
-	Short: "Print the hostr PHP binary selected for the current site",
+	Short: "Print the routa PHP binary selected for the current site",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctx, err := currentPHPContext()
@@ -233,7 +233,7 @@ var phpInstallCmd = &cobra.Command{
 		}
 
 		// Start the major.minor instance — that's what sites reference by default.
-		unit := fmt.Sprintf("hostr-php@%s.service", rel.Version.MinorString())
+		unit := fmt.Sprintf("routa-php@%s.service", rel.Version.MinorString())
 		if err := systemd.EnableNow(unit); err != nil {
 			return err
 		}
@@ -270,7 +270,7 @@ var phpListCmd = &cobra.Command{
 			return err
 		}
 		if len(installed) == 0 {
-			fmt.Println("no PHP versions installed. `hostr php install <version>`")
+			fmt.Println("no PHP versions installed. `routa php install <version>`")
 			return nil
 		}
 		st, _ := site.Load()
@@ -358,14 +358,14 @@ func requirePHP(version string) error {
 	if len(labels) > 0 {
 		hint = "installed: " + strings.Join(labels, ", ")
 	}
-	return fmt.Errorf("PHP %s is not installed (%s). Run: hostr php install %s", version, hint, version)
+	return fmt.Errorf("PHP %s is not installed (%s). Run: routa php install %s", version, hint, version)
 }
 
 func applyPHPINIChange(cmd *cobra.Command, spec string) error {
 	if err := php.WriteFPMConfig(spec); err != nil {
 		return err
 	}
-	unit := fmt.Sprintf("hostr-php@%s.service", spec)
+	unit := fmt.Sprintf("routa-php@%s.service", spec)
 	if !systemd.IsActive(unit) {
 		fmt.Fprintf(cmd.OutOrStdout(), "generated FPM config; %s is not running\n", unit)
 		return nil
@@ -419,7 +419,7 @@ func currentPHPContext() (*phpCLIContext, error) {
 		spec = resolved[0]
 	}
 	if spec == "" {
-		return nil, fmt.Errorf("no hostr PHP version is configured. Run: hostr php install <version>")
+		return nil, fmt.Errorf("no routa PHP version is configured. Run: routa php install <version>")
 	}
 	if err := requirePHP(spec); err != nil {
 		return nil, err
@@ -446,7 +446,7 @@ func runPHPProxy(_ *cobra.Command, args []string) error {
 		return err
 	}
 	args = trimArgSeparator(args)
-	return runWithHostrPHP(ctx, ctx.Bin, args)
+	return runWithRoutaPHP(ctx, ctx.Bin, args)
 }
 
 func runComposerProxy(_ *cobra.Command, args []string) error {
@@ -459,7 +459,7 @@ func runComposerProxy(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("composer not found in PATH")
 	}
 	args = trimArgSeparator(args)
-	return runWithHostrPHP(ctx, composer, args)
+	return runWithRoutaPHP(ctx, composer, args)
 }
 
 func trimArgSeparator(args []string) []string {
@@ -469,16 +469,16 @@ func trimArgSeparator(args []string) []string {
 	return args
 }
 
-func runWithHostrPHP(ctx *phpCLIContext, name string, args []string) error {
+func runWithRoutaPHP(ctx *phpCLIContext, name string, args []string) error {
 	c := exec.Command(name, args...)
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
-	c.Env = envWithHostrPHP(ctx)
+	c.Env = envWithRoutaPHP(ctx)
 	return c.Run()
 }
 
-func envWithHostrPHP(ctx *phpCLIContext) []string {
+func envWithRoutaPHP(ctx *phpCLIContext) []string {
 	phpDir := filepath.Dir(ctx.Bin)
 	env := os.Environ()
 	pathSet := false
@@ -532,7 +532,7 @@ var phpRmCmd = &cobra.Command{
 				continue
 			}
 			seen[spec] = true
-			_ = systemd.DisableNow(fmt.Sprintf("hostr-php@%s.service", spec))
+			_ = systemd.DisableNow(fmt.Sprintf("routa-php@%s.service", spec))
 		}
 		if err := php.RemoveVersion(v); err != nil {
 			return err

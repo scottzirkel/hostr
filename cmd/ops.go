@@ -14,12 +14,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/cutover"
-	"github.com/scottzirkel/hostr/internal/paths"
-	"github.com/scottzirkel/hostr/internal/php"
-	"github.com/scottzirkel/hostr/internal/site"
-	"github.com/scottzirkel/hostr/internal/systemd"
-	"github.com/scottzirkel/hostr/internal/tui"
+	"github.com/scottzirkel/routa/internal/cutover"
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/php"
+	"github.com/scottzirkel/routa/internal/site"
+	"github.com/scottzirkel/routa/internal/systemd"
+	"github.com/scottzirkel/routa/internal/tui"
 )
 
 // --- reload ---------------------------------------------------------------
@@ -47,14 +47,14 @@ var reloadCmd = &cobra.Command{
 
 var restartCmd = &cobra.Command{
 	Use:   "restart [unit]",
-	Short: "Restart hostr services (no arg = all: dns + caddy + all php-fpm)",
+	Short: "Restart routa services (no arg = all: dns + caddy + all php-fpm)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		var units []string
 		if len(args) == 1 {
 			units = []string{normalizeUnit(args[0])}
 		} else {
-			units = []string{"hostr-dns.service", "hostr-caddy.service"}
+			units = []string{"routa-dns.service", "routa-caddy.service"}
 			units = append(units, runningPHPUnits()...)
 		}
 		for _, u := range units {
@@ -86,10 +86,10 @@ func prepareRestartUnit(unit string) error {
 }
 
 func phpSpecFromUnit(unit string) (string, bool) {
-	if !strings.HasPrefix(unit, "hostr-php@") || !strings.HasSuffix(unit, ".service") {
+	if !strings.HasPrefix(unit, "routa-php@") || !strings.HasSuffix(unit, ".service") {
 		return "", false
 	}
-	spec := strings.TrimSuffix(strings.TrimPrefix(unit, "hostr-php@"), ".service")
+	spec := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-php@"), ".service")
 	return spec, spec != ""
 }
 
@@ -105,7 +105,7 @@ var statusCmd = &cobra.Command{
 		}
 		sites := s.Resolve()
 		if len(sites) == 0 {
-			fmt.Println("no sites configured. Run `hostr park <dir>` or `hostr link [name]`.")
+			fmt.Println("no sites configured. Run `routa track <dir>` or `routa link [name]`.")
 			return nil
 		}
 		installed := installedPHPSet()
@@ -130,7 +130,7 @@ var statusCmd = &cobra.Command{
 		}
 		if s.DefaultPHP != "" && !installed[s.DefaultPHP] {
 			fmt.Fprintf(cmd.OutOrStderr(),
-				"\n! default PHP %q is not installed. Run: hostr php install %s\n",
+				"\n! default PHP %q is not installed. Run: routa php install %s\n",
 				s.DefaultPHP, s.DefaultPHP)
 		}
 		return nil
@@ -196,11 +196,11 @@ var (
 
 var logsCmd = &cobra.Command{
 	Use:   "logs [name]",
-	Short: "Tail logs for a site (Caddy access + PHP errors). No name = all hostr-caddy/dns.",
+	Short: "Tail logs for a site (Caddy access + PHP errors). No name = all routa-caddy/dns.",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		if len(args) == 0 {
-			c := exec.Command("journalctl", "--user", "-fu", "hostr-caddy.service", "-u", "hostr-dns.service", "-n", fmt.Sprintf("%d", logsLines))
+			c := exec.Command("journalctl", "--user", "-fu", "routa-caddy.service", "-u", "routa-dns.service", "-n", fmt.Sprintf("%d", logsLines))
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			c.Stdin = os.Stdin
@@ -269,7 +269,7 @@ type doctorEndpoint struct {
 type doctorNetwork struct {
 	CaddyAdmin doctorEndpoint `json:"caddy_admin"`
 	CaddyHTTPS doctorEndpoint `json:"caddy_https"`
-	HostrDNS   doctorEndpoint `json:"hostr_dns"`
+	RoutaDNS   doctorEndpoint `json:"routa_dns"`
 }
 
 type doctorDNS struct {
@@ -314,26 +314,26 @@ var doctorCmd = &cobra.Command{
 func collectDoctorReport(withProbes bool) (doctorReport, error) {
 	report := doctorReport{}
 
-	units := []string{"hostr-dns.service", "hostr-caddy.service"}
+	units := []string{"routa-dns.service", "routa-caddy.service"}
 	units = append(units, runningPHPUnits()...)
 	for _, u := range units {
 		report.Services = append(report.Services, doctorServiceStatus(u, systemctlUserIsActive))
 	}
 
-	caddyActive := serviceActive(report.Services, "hostr-caddy.service")
+	caddyActive := serviceActive(report.Services, "routa-caddy.service")
 	caddyAdminOK := httpOK("http://127.0.0.1:2019/config/")
 	std := portBound(":443") || portBound("127.0.0.1:443")
 	alt := portBound("127.0.0.1:8443")
-	hostrDNSOK := portBound("127.0.0.1:1053")
+	routaDNSOK := portBound("127.0.0.1:1053")
 	report.Network = doctorNetwork{
 		CaddyAdmin: doctorEndpoint{Name: "caddy admin", OK: caddyAdminOK, Detail: "127.0.0.1:2019 (" + upDown(caddyAdminOK) + ")"},
 		CaddyHTTPS: doctorEndpoint{Name: "caddy https", OK: std || alt, Detail: caddyAddrLabel(std, alt, caddyActive)},
-		HostrDNS:   doctorEndpoint{Name: "hostr-dns", OK: hostrDNSOK, Detail: "127.0.0.1:1053 (" + upDown(hostrDNSOK) + ")"},
+		RoutaDNS:   doctorEndpoint{Name: "routa-dns", OK: routaDNSOK, Detail: "127.0.0.1:1053 (" + upDown(routaDNSOK) + ")"},
 	}
 
-	const dnsName = "doctor.hostr.test"
+	const dnsName = "doctor.routa.test"
 	const expectedDNS = "127.0.0.1"
-	dnsResult := queryHostrDNS(dnsName)
+	dnsResult := queryRoutaDNS(dnsName)
 	report.DNS = doctorDNS{
 		OK:       dnsResult.Answer == expectedDNS,
 		Name:     dnsName,
@@ -418,10 +418,10 @@ func renderDoctorText(cmd *cobra.Command, report doctorReport) error {
 	fmt.Fprintln(out, "\nNetwork")
 	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.CaddyAdmin.OK), report.Network.CaddyAdmin.Name, report.Network.CaddyAdmin.Detail)
 	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.CaddyHTTPS.OK), report.Network.CaddyHTTPS.Name, report.Network.CaddyHTTPS.Detail)
-	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.HostrDNS.OK), report.Network.HostrDNS.Name, report.Network.HostrDNS.Detail)
+	fmt.Fprintf(out, "  %s  %-17s %s\n", mark(report.Network.RoutaDNS.OK), report.Network.RoutaDNS.Name, report.Network.RoutaDNS.Detail)
 
 	fmt.Fprintln(out, "\nDNS")
-	fmt.Fprintf(out, "  %s  hostr-dns answers %s -> %s (expected %s)\n", mark(report.DNS.OK), report.DNS.Name, report.DNS.Answer, report.DNS.Expected)
+	fmt.Fprintf(out, "  %s  routa-dns answers %s -> %s (expected %s)\n", mark(report.DNS.OK), report.DNS.Name, report.DNS.Answer, report.DNS.Expected)
 	if report.DNS.Detail != "" {
 		fmt.Fprintf(out, "     %s\n", report.DNS.Detail)
 	}
@@ -473,7 +473,7 @@ func runningPHPUnits() []string {
 	for _, s := range socks {
 		base := filepath.Base(s)
 		spec := strings.TrimSuffix(strings.TrimPrefix(base, "php-fpm-"), ".sock")
-		out = append(out, "hostr-php@"+spec+".service")
+		out = append(out, "routa-php@"+spec+".service")
 	}
 	return out
 }
@@ -515,34 +515,34 @@ func caddyAddrLabel(std, alt bool, caddyActive bool) string {
 	switch {
 	case std && alt:
 		if !caddyActive {
-			return "127.0.0.1:443 + 127.0.0.1:8443  (bound while hostr-caddy is not active; check for another owner)"
+			return "127.0.0.1:443 + 127.0.0.1:8443  (bound while routa-caddy is not active; check for another owner)"
 		}
 		return "127.0.0.1:443 + 127.0.0.1:8443  (both; rollback may not have released alt)"
 	case std:
 		if !caddyActive {
-			return "127.0.0.1:443  (bound while hostr-caddy is not active; another process may own standard HTTPS)"
+			return "127.0.0.1:443  (bound while routa-caddy is not active; another process may own standard HTTPS)"
 		}
 		return "127.0.0.1:443  (Phase 2)"
 	case alt:
 		if !caddyActive {
-			return "127.0.0.1:8443  (bound while hostr-caddy is not active; another process may own hostr's alt HTTPS)"
+			return "127.0.0.1:8443  (bound while routa-caddy is not active; another process may own routa's alt HTTPS)"
 		}
 		return "127.0.0.1:8443  (Phase 1)"
 	}
 	if caddyActive {
-		return "(not bound; hostr-caddy is active, check Caddy logs)"
+		return "(not bound; routa-caddy is active, check Caddy logs)"
 	}
-	return "(not bound; hostr-caddy is not active)"
+	return "(not bound; routa-caddy is not active)"
 }
 
 func phaseLabel(p cutover.Phase) string {
 	switch p {
 	case cutover.PhaseOne:
-		return "Phase 1 — hostr on alt ports (run `hostr cutover` to swap)"
+		return "Phase 1 — routa on alt ports (run `routa cutover` to swap)"
 	case cutover.PhaseTwo:
-		return "Phase 2 — hostr owns standard ports + DNS routing"
+		return "Phase 2 — routa owns standard ports + DNS routing"
 	}
-	return "Partial — system in mixed state; re-run `hostr cutover` or `--rollback` to converge"
+	return "Partial — system in mixed state; re-run `routa cutover` or `--rollback` to converge"
 }
 
 func cutoverPhaseName(p cutover.Phase) string {
@@ -560,7 +560,7 @@ type dnsQueryResult struct {
 	Detail string
 }
 
-func queryHostrDNS(name string) dnsQueryResult {
+func queryRoutaDNS(name string) dnsQueryResult {
 	out, err := exec.Command(os.Args[0], "query", name).CombinedOutput()
 	if err != nil {
 		detail := strings.TrimSpace(string(out))
@@ -569,12 +569,12 @@ func queryHostrDNS(name string) dnsQueryResult {
 		}
 		return dnsQueryResult{Answer: "(error)", Detail: detail}
 	}
-	return parseHostrDNSOutput(string(out))
+	return parseRoutaDNSOutput(string(out))
 }
 
-func parseHostrDNSOutput(out string) dnsQueryResult {
+func parseRoutaDNSOutput(out string) dnsQueryResult {
 	for _, line := range strings.Split(string(out), "\n") {
-		// `hostr query` prints lines like: name.\t60\tIN\tA\t127.0.0.1
+		// `routa query` prints lines like: name.\t60\tIN\tA\t127.0.0.1
 		fields := strings.Fields(line)
 		for i, f := range fields {
 			if f == "A" && i < len(fields)-1 {

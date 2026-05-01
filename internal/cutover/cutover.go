@@ -1,7 +1,7 @@
-// Package cutover orchestrates the swap to hostr-on-standard-ports.
+// Package cutover orchestrates the swap to routa-on-standard-ports.
 // The destructive system mutations are
 // emitted as a single shell block for the user to run with sudo;
-// the user-side parts (Caddyfile swap, hostr-caddy restart) we do.
+// the user-side parts (Caddyfile swap, routa-caddy restart) we do.
 package cutover
 
 import (
@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/scottzirkel/hostr/internal/caddyconf"
-	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/routa/internal/caddyconf"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 type Phase int
 
 const (
-	PhaseOne     Phase = 1 // running hostr on alt ports
-	PhaseTwo     Phase = 2 // hostr owns 80/443 and *.test resolution
+	PhaseOne     Phase = 1 // running routa on alt ports
+	PhaseTwo     Phase = 2 // routa owns 80/443 and *.test resolution
 	PhasePartial Phase = -1
 )
 
@@ -44,7 +44,7 @@ func detectPhase(resolvOK, perLink, caddyOnStd, caddyOnAlt bool) Phase {
 }
 
 func perLinkDropinExists() bool {
-	matches, _ := filepath.Glob("/etc/systemd/network/*.network.d/hostr.conf")
+	matches, _ := filepath.Glob("/etc/systemd/network/*.network.d/routa.conf")
 	return len(matches) > 0
 }
 
@@ -75,8 +75,8 @@ type Check struct {
 
 func Preflight() []Check {
 	checks := []Check{
-		unitActive("hostr-dns.service", "user"),
-		unitActive("hostr-caddy.service", "user"),
+		unitActive("routa-dns.service", "user"),
+		unitActive("routa-caddy.service", "user"),
 		hasSites(),
 	}
 	checks = append(checks, unitState("valet-dns.service", "legacy DNS service (will be disabled)"))
@@ -112,7 +112,7 @@ func unitState(unit, label string) Check {
 
 func hasSites() Check {
 	// imported lazily to avoid cycle; just count fragment files.
-	entries, _ := os.ReadDir(os.ExpandEnv("$HOME/.local/share/hostr/sites"))
+	entries, _ := os.ReadDir(os.ExpandEnv("$HOME/.local/share/routa/sites"))
 	return Check{
 		Name:   "configured sites",
 		OK:     len(entries) > 0,
@@ -124,7 +124,7 @@ func hasSites() Check {
 // to the global server pool — it does NOT pin queries to a specific server.
 // For per-domain server selection we need PER-LINK config, which means a
 // drop-in in /etc/systemd/network/<file>.d/ for each existing .network file.
-const sudoBlock = `# === hostr cutover — run as root, single block ===
+const sudoBlock = `# === routa cutover — run as root, single block ===
 set -e
 
 # 1) Refuse to continue if there are no systemd-networkd .network files to patch.
@@ -135,12 +135,12 @@ for nf in /etc/systemd/network/*.network; do
     break
 done
 if [ "$found_network" -eq 0 ]; then
-    echo "hostr cutover needs at least one /etc/systemd/network/*.network file for per-link ~test routing." >&2
+    echo "routa cutover needs at least one /etc/systemd/network/*.network file for per-link ~test routing." >&2
     exit 1
 fi
 
-# 2) Allow user processes (hostr-caddy under systemd --user) to bind low ports.
-echo 'net.ipv4.ip_unprivileged_port_start=80' > /etc/sysctl.d/50-hostr.conf
+# 2) Allow user processes (routa-caddy under systemd --user) to bind low ports.
+echo 'net.ipv4.ip_unprivileged_port_start=80' > /etc/sysctl.d/50-routa.conf
 sysctl --system >/dev/null
 
 # 3) Stop and disable legacy local-dev services + dnsmasq.
@@ -158,7 +158,7 @@ for nf in /etc/systemd/network/*.network; do
     [ -f "$nf" ] || continue
     base=$(basename "$nf" .network)
     mkdir -p "/etc/systemd/network/${base}.network.d"
-    cat > "/etc/systemd/network/${base}.network.d/hostr.conf" <<'CONF'
+    cat > "/etc/systemd/network/${base}.network.d/routa.conf" <<'CONF'
 [Network]
 DNS=127.0.0.1:1053
 Domains=~test
@@ -170,7 +170,7 @@ networkctl reload
 systemctl restart systemd-resolved.service
 `
 
-const sudoRollbackBlock = `# === hostr cutover rollback — run as root ===
+const sudoRollbackBlock = `# === routa cutover rollback — run as root ===
 set -e
 
 # 1) Re-enable legacy local-dev services.
@@ -178,13 +178,13 @@ systemctl enable --now valet-dns.service nginx.service dnsmasq.service 2>/dev/nu
 
 # 2) Remove per-link routing drop-ins.
 for d in /etc/systemd/network/*.network.d; do
-    rm -f "$d/hostr.conf"
+    rm -f "$d/routa.conf"
     rmdir --ignore-fail-on-non-empty "$d" 2>/dev/null || true
 done
 networkctl reload 2>/dev/null || true
 
-# 3) Remove any stale global drop-in (from earlier hostr versions).
-rm -f /etc/systemd/resolved.conf.d/hostr.conf
+# 3) Remove any stale global drop-in (from earlier routa versions).
+rm -f /etc/systemd/resolved.conf.d/routa.conf
 systemctl restart systemd-resolved.service 2>/dev/null || true
 
 # 4) Restore a working resolver target.
@@ -196,23 +196,23 @@ else
 fi
 
 # 5) Restore default unprivileged port range.
-rm -f /etc/sysctl.d/50-hostr.conf
+rm -f /etc/sysctl.d/50-routa.conf
 sysctl --system >/dev/null
 `
 
 func SudoBlock() string         { return sudoBlock }
 func SudoRollbackBlock() string { return sudoRollbackBlock }
 
-// SwapToPhaseTwo restarts hostr-caddy on standard ports.
+// SwapToPhaseTwo restarts routa-caddy on standard ports.
 func SwapToPhaseTwo() error {
-	if err := systemd.Stop("hostr-caddy.service"); err != nil {
-		return fmt.Errorf("stop hostr-caddy: %w", err)
+	if err := systemd.Stop("routa-caddy.service"); err != nil {
+		return fmt.Errorf("stop routa-caddy: %w", err)
 	}
 	if err := caddyconf.Write(caddyconf.PhaseTwo()); err != nil {
 		return fmt.Errorf("write Caddyfile (Phase 2): %w", err)
 	}
-	if err := systemd.EnableNow("hostr-caddy.service"); err != nil {
-		return fmt.Errorf("start hostr-caddy: %w", err)
+	if err := systemd.EnableNow("routa-caddy.service"); err != nil {
+		return fmt.Errorf("start routa-caddy: %w", err)
 	}
 	// Wait for it to actually bind.
 	deadline := time.Now().Add(10 * time.Second)
@@ -222,19 +222,19 @@ func SwapToPhaseTwo() error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf("hostr-caddy didn't bind :443 within 10s — check `systemctl --user status hostr-caddy`")
+	return fmt.Errorf("routa-caddy didn't bind :443 within 10s — check `systemctl --user status routa-caddy`")
 }
 
-// SwapToPhaseOne restarts hostr-caddy on the alt ports.
+// SwapToPhaseOne restarts routa-caddy on the alt ports.
 func SwapToPhaseOne() error {
-	if err := systemd.Stop("hostr-caddy.service"); err != nil {
-		return fmt.Errorf("stop hostr-caddy: %w", err)
+	if err := systemd.Stop("routa-caddy.service"); err != nil {
+		return fmt.Errorf("stop routa-caddy: %w", err)
 	}
 	if err := caddyconf.Write(caddyconf.PhaseOne()); err != nil {
 		return fmt.Errorf("write Caddyfile (Phase 1): %w", err)
 	}
-	if err := systemd.EnableNow("hostr-caddy.service"); err != nil {
-		return fmt.Errorf("start hostr-caddy: %w", err)
+	if err := systemd.EnableNow("routa-caddy.service"); err != nil {
+		return fmt.Errorf("start routa-caddy: %w", err)
 	}
 	return nil
 }

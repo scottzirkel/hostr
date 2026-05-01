@@ -9,18 +9,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/ca"
-	"github.com/scottzirkel/hostr/internal/paths"
-	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/routa/internal/ca"
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
-	Short: "Reverse `hostr install` — stop services, remove units, untrust CA",
-	Long: `Stops hostr-caddy and hostr-dns, removes their unit files, and untrusts
-the local CA. By default it keeps hostr state and installed PHP builds. Pass
---purge to remove hostr-owned XDG state/data/config directories as well. Purge
-does not delete your website/project directories referenced by parked dirs or links.`,
+	Short: "Reverse `routa install` — stop services, remove units, untrust CA",
+	Long: `Stops routa-caddy and routa-dns, removes their unit files, and untrusts
+the local CA. By default it keeps routa state and installed PHP builds. Pass
+--purge to remove routa-owned XDG state/data/config directories as well. Purge
+does not delete your website/project directories referenced by tracked dirs or links.`,
 	RunE: runUninstall,
 }
 
@@ -32,12 +32,12 @@ func init() {
 }
 
 func runUninstall(_ *cobra.Command, _ []string) error {
-	for _, u := range hostrUnitsForUninstall() {
+	for _, u := range routaUnitsForUninstall() {
 		fmt.Printf("→ disable %s\n", u)
 		_ = systemd.DisableNow(u) // ignore: unit may not exist
 		_ = os.Remove(filepath.Join(paths.SystemdUserDir(), u))
 	}
-	_ = os.Remove(filepath.Join(paths.SystemdUserDir(), "hostr-php@.service"))
+	_ = os.Remove(filepath.Join(paths.SystemdUserDir(), "routa-php@.service"))
 	_ = systemd.DaemonReload()
 
 	fmt.Println("→ untrust Caddy local CA (will sudo)")
@@ -46,9 +46,9 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 	}
 
 	if purge {
-		for _, d := range hostrDirsForPurge() {
+		for _, d := range routaDirsForPurge() {
 			fmt.Printf("→ rm -rf %s\n", d)
-			if err := purgeHostrDir(d); err != nil {
+			if err := purgeRoutaDir(d); err != nil {
 				return err
 			}
 		}
@@ -57,18 +57,18 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func hostrUnitsForUninstall() []string {
-	units := []string{"hostr-caddy.service", "hostr-dns.service"}
+func routaUnitsForUninstall() []string {
+	units := []string{"routa-caddy.service", "routa-dns.service"}
 	return append(units, phpUnitsForUninstall(paths.SystemdUserDir(), paths.RunDir())...)
 }
 
-func hostrDirsForPurge() []string {
+func routaDirsForPurge() []string {
 	return []string{paths.DataDir(), paths.StateDir(), paths.ConfigDir()}
 }
 
-func purgeHostrDir(dir string) error {
-	if filepath.Base(dir) != "hostr" {
-		return fmt.Errorf("refusing to purge non-hostr directory: %s", dir)
+func purgeRoutaDir(dir string) error {
+	if filepath.Base(dir) != "routa" {
+		return fmt.Errorf("refusing to purge non-routa directory: %s", dir)
 	}
 	return os.RemoveAll(dir)
 }
@@ -79,17 +79,17 @@ func phpUnitsForUninstall(systemdDir, runDir string) []string {
 		if spec == "" {
 			return
 		}
-		seen["hostr-php@"+spec+".service"] = true
+		seen["routa-php@"+spec+".service"] = true
 	}
 
 	for _, pattern := range []string{
-		filepath.Join(systemdDir, "default.target.wants", "hostr-php@*.service"),
-		filepath.Join(systemdDir, "hostr-php@*.service"),
+		filepath.Join(systemdDir, "default.target.wants", "routa-php@*.service"),
+		filepath.Join(systemdDir, "routa-php@*.service"),
 	} {
 		matches, _ := filepath.Glob(pattern)
 		for _, match := range matches {
 			unit := filepath.Base(match)
-			spec := strings.TrimSuffix(strings.TrimPrefix(unit, "hostr-php@"), ".service")
+			spec := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-php@"), ".service")
 			addSpec(spec)
 		}
 	}

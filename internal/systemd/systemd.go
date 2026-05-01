@@ -1,4 +1,4 @@
-// Package systemd writes hostr's user units and drives systemctl --user.
+// Package systemd writes routa's user units and drives systemctl --user.
 package systemd
 
 import (
@@ -9,17 +9,17 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/scottzirkel/hostr/internal/caddyconf"
-	"github.com/scottzirkel/hostr/internal/paths"
+	"github.com/scottzirkel/routa/internal/caddyconf"
+	"github.com/scottzirkel/routa/internal/paths"
 )
 
 const dnsUnit = `[Unit]
-Description=hostr DNS responder for *.test
+Description=routa DNS responder for *.test
 After=network.target
 
 [Service]
 Type=simple
-ExecStart={{.HostrBin}} serve-dns --addr 127.0.0.1:{{.DNSPort}}
+ExecStart={{.RoutaBin}} serve-dns --addr 127.0.0.1:{{.DNSPort}}
 Restart=on-failure
 RestartSec=2
 
@@ -28,8 +28,8 @@ WantedBy=default.target
 `
 
 const caddyUnit = `[Unit]
-Description=hostr Caddy reverse proxy
-After=network.target hostr-dns.service
+Description=routa Caddy reverse proxy
+After=network.target routa-dns.service
 
 [Service]
 Type=notify
@@ -45,7 +45,7 @@ WantedBy=default.target
 `
 
 type unitData struct {
-	HostrBin  string
+	RoutaBin  string
 	Caddyfile string
 	DNSPort   int
 }
@@ -79,9 +79,9 @@ func WriteUserUnits(dnsPort int) error {
 	return DaemonReload()
 }
 
-func RenderUserUnitFiles(dnsPort int, hostrBin string) ([]UnitFile, error) {
+func RenderUserUnitFiles(dnsPort int, routaBin string) ([]UnitFile, error) {
 	data := unitData{
-		HostrBin:  hostrBin,
+		RoutaBin:  routaBin,
 		Caddyfile: caddyconf.Path(),
 		DNSPort:   dnsPort,
 	}
@@ -89,8 +89,8 @@ func RenderUserUnitFiles(dnsPort int, hostrBin string) ([]UnitFile, error) {
 		name string
 		tmpl string
 	}{
-		{"hostr-dns.service", dnsUnit},
-		{"hostr-caddy.service", caddyUnit},
+		{"routa-dns.service", dnsUnit},
+		{"routa-caddy.service", caddyUnit},
 	}
 	out := make([]UnitFile, 0, len(units))
 	for _, unit := range units {

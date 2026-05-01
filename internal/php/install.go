@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/scottzirkel/hostr/internal/paths"
+	"github.com/scottzirkel/routa/internal/paths"
 )
 
 func versionDir(version string) string { return filepath.Join(paths.PHPDir(), version) }

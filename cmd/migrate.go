@@ -7,18 +7,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/migrate"
-	"github.com/scottzirkel/hostr/internal/php"
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/migrate"
+	"github.com/scottzirkel/routa/internal/php"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
 var migrateDryRun bool
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate-from-valet",
-	Short: "Import an existing local PHP dev config into hostr",
+	Short: "Import an existing local PHP dev config into routa",
 	Long: `Reads ~/.valet/config.json, ~/.valet/Sites/, and ~/.valet/Nginx/ and
-imports parked directories, linked sites, HTTPS toggles, and per-site PHP
+imports tracked directories, linked sites, HTTPS toggles, and per-site PHP
 isolation. Safe to run repeatedly — duplicates are de-duped.`,
 	RunE: runMigrate,
 }
@@ -80,13 +80,13 @@ func runMigrate(_ *cobra.Command, _ []string) error {
 	if err := site.ReloadCaddy(); err != nil {
 		return fmt.Errorf("reload caddy: %w", err)
 	}
-	fmt.Printf("\n✓ imported %d parked dir(s) and %d link(s).\n", len(plan.Parked), len(plan.Links))
+	fmt.Printf("\n✓ imported %d tracked dir(s) and %d link(s).\n", len(plan.Parked), len(plan.Links))
 
 	missing := missingPHP(plan, st)
 	if len(missing) > 0 {
 		fmt.Println("\nPHP versions referenced by imported sites that aren't installed:")
 		for _, v := range missing {
-			fmt.Printf("  hostr php install %s\n", v)
+			fmt.Printf("  routa php install %s\n", v)
 		}
 	}
 	return nil

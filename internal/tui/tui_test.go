@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
 func TestProblemReasons(t *testing.T) {

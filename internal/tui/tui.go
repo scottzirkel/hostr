@@ -1,4 +1,4 @@
-// Package tui is hostr's Bubble Tea dashboard.
+// Package tui is routa's Bubble Tea dashboard.
 // Rendered with lipgloss directly because bubbles/table v1 mishandles ANSI
 // escapes inside cell text.
 package tui
@@ -18,8 +18,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/scottzirkel/hostr/internal/paths"
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
 // Column widths flex with the terminal. NAME, HTTPS, STAT always show.
@@ -279,7 +279,7 @@ func healthCmd() tea.Cmd {
 func collectHealth() healthState {
 	return healthState{
 		dnsOK:   portBound("127.0.0.1:1053"),
-		caddyOK: systemdUserActive("hostr-caddy.service"),
+		caddyOK: systemdUserActive("routa-caddy.service"),
 		httpsOK: portBound("127.0.0.1:443") || portBound(":443"),
 		altOK:   portBound("127.0.0.1:8443") || portBound(":8443"),
 	}
@@ -293,7 +293,7 @@ func systemdUserActive(unit string) bool {
 func openSite(name string) error {
 	bin, err := os.Executable()
 	if err != nil {
-		bin = "hostr"
+		bin = "routa"
 	}
 	return exec.Command(bin, "open", name).Start()
 }
@@ -479,7 +479,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if sel := m.selected(); sel != nil {
 				bin, err := os.Executable()
 				if err != nil {
-					bin = "hostr"
+					bin = "routa"
 				}
 				return m, tea.ExecProcess(
 					exec.Command(bin, "logs", sel.Name),
@@ -523,7 +523,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "u":
 			if sel := m.selected(); sel != nil {
 				if !m.isExplicitLink(sel.Name) {
-					m.status = sel.Name + ".test is parked, not an explicit link"
+					m.status = sel.Name + ".test is tracked, not an explicit link"
 				} else {
 					m.confirm = &confirmState{kind: actionUnlink, site: *sel, text: "unlink " + sel.Name + ".test"}
 				}
@@ -531,7 +531,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "S":
 			if sel := m.selected(); sel != nil {
 				if !m.isExplicitLink(sel.Name) {
-					m.status = sel.Name + ".test is parked, not an explicit link"
+					m.status = sel.Name + ".test is tracked, not an explicit link"
 				} else {
 					m.confirm = &confirmState{kind: actionSecure, site: *sel, text: "toggle HTTPS for " + sel.Name + ".test"}
 				}
@@ -1123,9 +1123,9 @@ func (m model) panelWidths() (int, int) {
 }
 
 func (m model) renderBanner() string {
-	// Bold purple HOSTR with heavy bars; no background color, so terminal
+	// Bold purple ROUTA with heavy bars; no background color, so terminal
 	// themes do not fight the title.
-	label := bannerStyle.Render("HOSTR")
+	label := bannerStyle.Render("ROUTA")
 	tagline := taglineStyle.Render("local web dev server")
 	leadBars := ruleStyle.Render("━━━ ")
 	gap := ruleStyle.Render(" · ")
@@ -1724,7 +1724,7 @@ func Run() error {
 	}
 	sites := s.Resolve()
 	if len(sites) == 0 {
-		return fmt.Errorf("no sites configured. Run `hostr park <dir>` or `hostr link [name]` first")
+		return fmt.Errorf("no sites configured. Run `routa track <dir>` or `routa link [name]` first")
 	}
 	m := model{
 		sites:     sites,
@@ -1740,7 +1740,7 @@ func Run() error {
 }
 
 // DebugRender returns one rendered View frame (no event loop) at the given width.
-// Used by `hostr tui-render` to inspect output non-interactively.
+// Used by `routa tui-render` to inspect output non-interactively.
 func DebugRender(width int) string {
 	s, err := site.Load()
 	if err != nil {

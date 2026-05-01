@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/scottzirkel/hostr/internal/paths"
+	"github.com/scottzirkel/routa/internal/paths"
 )
 
 const rootTmpl = `{

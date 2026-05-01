@@ -5,13 +5,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/diag"
+	"github.com/scottzirkel/routa/internal/diag"
 )
 
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Diagnose the host resolver and required binaries",
-	Long:  `init runs read-only prerequisite checks. To provision, use "hostr install".`,
+	Long:  `init runs read-only prerequisite checks. To provision, use "routa install".`,
 	RunE:  runInit,
 }
 
@@ -36,7 +36,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if blocking > 0 {
 		return fmt.Errorf("%d blocking issue(s) — resolve and re-run", blocking)
 	}
-	fmt.Println("Checks pass. Next: `hostr install` (alt ports). Then `hostr cutover` when ready.")
+	fmt.Println("Checks pass. Next: `routa install` (alt ports). Then `routa cutover` when ready.")
 	return nil
 }
 

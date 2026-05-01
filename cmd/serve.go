@@ -9,7 +9,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 
-	hdns "github.com/scottzirkel/hostr/internal/dns"
+	hdns "github.com/scottzirkel/routa/internal/dns"
 )
 
 var dnsAddr string
@@ -21,14 +21,14 @@ var serveDNSCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 		defer cancel()
-		fmt.Printf("hostr-dns listening on %s\n", dnsAddr)
+		fmt.Printf("routa-dns listening on %s\n", dnsAddr)
 		return hdns.New(dnsAddr).Run(ctx)
 	},
 }
 
 var queryCmd = &cobra.Command{
 	Use:   "query <name>",
-	Short: "Query hostr's DNS resolver directly (debug)",
+	Short: "Query routa's DNS resolver directly (debug)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		c := new(dns.Client)

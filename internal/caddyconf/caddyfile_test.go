@@ -24,11 +24,11 @@ func TestWriteRendersRotatingLogs(t *testing.T) {
 	for _, want := range []string{
 		"http_port  8080",
 		"https_port 8443",
-		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hostr", "log", "caddy.log")) + " {",
+		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "caddy.log")) + " {",
 		"roll_size 10MiB",
 		"roll_keep 5",
 		"roll_keep_for 720h",
-		"import " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "sites") + "/*.caddy",
+		"import " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "sites") + "/*.caddy",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered Caddyfile missing %q:\n%s", want, content)

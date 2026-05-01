@@ -1,6 +1,6 @@
 # Release Process
 
-hostr uses SemVer-style tags, with `v0.x.y` while the project is pre-1.0.
+routa uses SemVer-style tags, with `v0.x.y` while the project is pre-1.0.
 
 ## Version Rules
 
@@ -22,8 +22,8 @@ Before `v1.0.0`, minor releases may still include breaking changes, but prefer c
 2. Run checks:
 
    ```bash
-   GOCACHE=/tmp/hostr-go-cache go test ./...
-   GOCACHE=/tmp/hostr-go-cache go vet ./...
+   GOCACHE=/tmp/routa-go-cache go test ./...
+   GOCACHE=/tmp/routa-go-cache go vet ./...
    ```
 
 3. Choose the next version from the version rules.
@@ -38,7 +38,7 @@ Before `v1.0.0`, minor releases may still include breaking changes, but prefer c
 5. Create an annotated tag on the release commit:
 
    ```bash
-   git tag -a vX.Y.Z -m "hostr vX.Y.Z"
+   git tag -a vX.Y.Z -m "routa vX.Y.Z"
    ```
 
 6. Push the branch and tags:
@@ -62,7 +62,7 @@ Before `v1.0.0`, minor releases may still include breaking changes, but prefer c
 
 The initial release line was reconstructed from the first commits:
 
-- `v0.1.0`: initial hostr implementation.
+- `v0.1.0`: initial routa implementation.
 - `v0.2.0`: TUI, proxy command, and CLI polish.
 - `v0.3.0`: version command, custom docroot override, and completion docs.
 - `v0.3.1`: roadmap documentation.
@@ -72,8 +72,9 @@ The initial release line was reconstructed from the first commits:
 - `v0.5.1`: proxy target validation, PHP-FPM uninstall cleanup, safer rollback resolver restoration, corrected Phase 1 detection with existing systemd-resolved, and cutover guard for missing systemd-networkd `.network` files.
 - `v0.5.2`: purge safety guard and extra routing/migration coverage.
 - `v0.6.0`: routing, install, uninstall, cutover, rollback, and Valet migration coverage; documented systemd-networkd requirements, rollback resolver behavior, purge scope, and source/tag-only release policy.
-- `v0.7.0`: required dependency diagnostics fail fast in `hostr init`, install dependency guidance is distro-neutral, and `hostr doctor` preserves service-check failure details.
+- `v0.7.0`: required dependency diagnostics fail fast in `routa init`, install dependency guidance is distro-neutral, and `routa doctor` preserves service-check failure details.
 - `v1.0.0`: stable Linux support contract, clearer doctor diagnostics, certificate trust troubleshooting, and completed DNS/port/certificate documentation.
-- `v1.1.0`: bare `hostr` launches the interactive dashboard; the TUI gains a split inspector, health strip, log previews, filters, sorting, collapsible groups, help/prompts, and inline site actions.
+- `v1.1.0`: bare `routa` launches the interactive dashboard; the TUI gains a split inspector, health strip, log previews, filters, sorting, collapsible groups, help/prompts, and inline site actions.
+- `v1.2.0`: project rename from hostr to routa, `track`/`untrack` commands with Valet-compatible aliases, ignored tracked-site support, static `public/` detection, and static SPA fallback routing.
 
 ## Pending Release Notes

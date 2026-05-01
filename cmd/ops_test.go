@@ -9,22 +9,22 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
 func TestDoctorReportJSONShape(t *testing.T) {
 	report := doctorReport{
 		Services: []doctorService{
-			{Name: "hostr-dns.service", OK: true, Status: "active"},
+			{Name: "routa-dns.service", OK: true, Status: "active"},
 		},
 		Network: doctorNetwork{
 			CaddyAdmin: doctorEndpoint{Name: "caddy admin", OK: true, Detail: "127.0.0.1:2019 (up)"},
 			CaddyHTTPS: doctorEndpoint{Name: "caddy https", OK: true, Detail: "127.0.0.1:443 (Phase 2)"},
-			HostrDNS:   doctorEndpoint{Name: "hostr-dns", OK: true, Detail: "127.0.0.1:1053 (up)"},
+			RoutaDNS:   doctorEndpoint{Name: "routa-dns", OK: true, Detail: "127.0.0.1:1053 (up)"},
 		},
 		DNS: doctorDNS{
 			OK:       true,
-			Name:     "doctor.hostr.test",
+			Name:     "doctor.routa.test",
 			Answer:   "127.0.0.1",
 			Expected: "127.0.0.1",
 		},
@@ -80,7 +80,7 @@ func TestDoctorProbeJSONShape(t *testing.T) {
 }
 
 func TestDoctorServiceStatusUsesSystemctlOutput(t *testing.T) {
-	service := doctorServiceStatus("hostr-caddy.service", func(string) ([]byte, error) {
+	service := doctorServiceStatus("routa-caddy.service", func(string) ([]byte, error) {
 		return []byte("inactive\n"), errors.New("exit status 3")
 	})
 
@@ -93,7 +93,7 @@ func TestDoctorServiceStatusUsesSystemctlOutput(t *testing.T) {
 }
 
 func TestDoctorServiceStatusFallsBackToError(t *testing.T) {
-	service := doctorServiceStatus("hostr-caddy.service", func(string) ([]byte, error) {
+	service := doctorServiceStatus("routa-caddy.service", func(string) ([]byte, error) {
 		return nil, errors.New("systemctl unavailable")
 	})
 
@@ -113,8 +113,8 @@ func TestCaddyAddrLabelReportsLikelyPortOwnerConflict(t *testing.T) {
 	}
 }
 
-func TestParseHostrDNSOutputFindsARecord(t *testing.T) {
-	got := parseHostrDNSOutput("doctor.hostr.test.\t60\tIN\tA\t127.0.0.1\n")
+func TestParseRoutaDNSOutputFindsARecord(t *testing.T) {
+	got := parseRoutaDNSOutput("doctor.routa.test.\t60\tIN\tA\t127.0.0.1\n")
 
 	if got.Answer != "127.0.0.1" {
 		t.Fatalf("answer = %q", got.Answer)
@@ -124,8 +124,8 @@ func TestParseHostrDNSOutputFindsARecord(t *testing.T) {
 	}
 }
 
-func TestParseHostrDNSOutputPreservesNoAnswerDetail(t *testing.T) {
-	got := parseHostrDNSOutput("doctor.hostr.test.\t60\tIN\tNXDOMAIN\n")
+func TestParseRoutaDNSOutputPreservesNoAnswerDetail(t *testing.T) {
+	got := parseRoutaDNSOutput("doctor.routa.test.\t60\tIN\tNXDOMAIN\n")
 
 	if got.Answer != "(no answer)" {
 		t.Fatalf("answer = %q", got.Answer)

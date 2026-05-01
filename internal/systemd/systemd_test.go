@@ -10,8 +10,8 @@ import (
 func TestRenderUserUnitFiles(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	hostrBin := filepath.Join(t.TempDir(), "hostr")
-	units, err := RenderUserUnitFiles(1053, hostrBin)
+	routaBin := filepath.Join(t.TempDir(), "routa")
+	units, err := RenderUserUnitFiles(1053, routaBin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,10 +24,10 @@ func TestRenderUserUnitFiles(t *testing.T) {
 		byName[unit.Name] = unit.Content
 	}
 
-	dns := byName["hostr-dns.service"]
+	dns := byName["routa-dns.service"]
 	for _, want := range []string{
-		"Description=hostr DNS responder for *.test",
-		"ExecStart=" + hostrBin + " serve-dns --addr 127.0.0.1:1053",
+		"Description=routa DNS responder for *.test",
+		"ExecStart=" + routaBin + " serve-dns --addr 127.0.0.1:1053",
 		"WantedBy=default.target",
 	} {
 		if !strings.Contains(dns, want) {
@@ -35,12 +35,12 @@ func TestRenderUserUnitFiles(t *testing.T) {
 		}
 	}
 
-	caddy := byName["hostr-caddy.service"]
+	caddy := byName["routa-caddy.service"]
 	for _, want := range []string{
-		"Description=hostr Caddy reverse proxy",
-		"After=network.target hostr-dns.service",
-		"ExecStart=/usr/bin/caddy run --config " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "Caddyfile") + " --adapter caddyfile",
-		"ExecReload=/usr/bin/caddy reload --config " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "Caddyfile") + " --adapter caddyfile --force",
+		"Description=routa Caddy reverse proxy",
+		"After=network.target routa-dns.service",
+		"ExecStart=/usr/bin/caddy run --config " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "Caddyfile") + " --adapter caddyfile",
+		"ExecReload=/usr/bin/caddy reload --config " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "Caddyfile") + " --adapter caddyfile --force",
 		"LimitNOFILE=1048576",
 	} {
 		if !strings.Contains(caddy, want) {

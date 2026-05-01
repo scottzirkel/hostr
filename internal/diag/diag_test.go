@@ -3,7 +3,7 @@ package diag
 import "testing"
 
 func TestRequiredBinaryAbsenceFails(t *testing.T) {
-	check := checkRequiredBinary("definitely-not-installed-hostr-test-bin", "install it")
+	check := checkRequiredBinary("definitely-not-installed-routa-test-bin", "install it")
 
 	if check.Status != Fail {
 		t.Fatalf("status = %q, want %q", check.Status, Fail)
@@ -14,7 +14,7 @@ func TestRequiredBinaryAbsenceFails(t *testing.T) {
 }
 
 func TestOptionalBinaryAbsenceIsNonBlocking(t *testing.T) {
-	check := checkOptionalBinary("definitely-not-installed-hostr-test-bin", "optional")
+	check := checkOptionalBinary("definitely-not-installed-routa-test-bin", "optional")
 
 	if check.Status != Absent {
 		t.Fatalf("status = %q, want %q", check.Status, Absent)

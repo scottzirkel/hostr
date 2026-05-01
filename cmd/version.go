@@ -15,9 +15,9 @@ var (
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Show hostr version + build info",
+	Short: "Show routa version + build info",
 	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Printf("hostr %s\n", Version)
+		fmt.Printf("routa %s\n", Version)
 		fmt.Printf("  commit: %s\n", Commit)
 		fmt.Printf("  built:  %s\n", BuildDate)
 	},

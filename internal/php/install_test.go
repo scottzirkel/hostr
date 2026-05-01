@@ -9,7 +9,7 @@ import (
 func TestRemoveVersionRemovesPatchDirectoryAndAliases(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "php")
+	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php")
 	if err := os.MkdirAll(filepath.Join(phpDir, "8.4.1", "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestRemoveVersionRemovesPatchDirectoryAndAliases(t *testing.T) {
 func TestRemoveVersionResolvesMinorWhenAliasIsAlreadyGone(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "php")
+	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php")
 	if err := os.MkdirAll(filepath.Join(phpDir, "8.3.30", "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestRemoveVersionResolvesMinorWhenAliasIsAlreadyGone(t *testing.T) {
 func TestRemoveVersionErrorsOnAmbiguousMinor(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "php")
+	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php")
 	for _, version := range []string{"8.3.29", "8.3.30"} {
 		if err := os.MkdirAll(filepath.Join(phpDir, version, "bin"), 0o755); err != nil {
 			t.Fatal(err)
@@ -64,7 +64,7 @@ func TestRemoveVersionErrorsOnAmbiguousMinor(t *testing.T) {
 func TestSymlinksSkipsDanglingAliases(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "php")
+	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php")
 	if err := os.MkdirAll(phpDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

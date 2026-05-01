@@ -78,7 +78,7 @@ func TestSudoBlockConfiguresPerLinkRouting(t *testing.T) {
 	block := SudoBlock()
 	for _, want := range []string{
 		"found_network=0",
-		"hostr cutover needs at least one /etc/systemd/network/*.network file",
+		"routa cutover needs at least one /etc/systemd/network/*.network file",
 		"/etc/systemd/network/*.network",
 		"DNS=127.0.0.1:1053",
 		"Domains=~test",
@@ -92,7 +92,7 @@ func TestSudoBlockConfiguresPerLinkRouting(t *testing.T) {
 
 func TestSudoBlockChecksNetworkFilesBeforeMutatingSystem(t *testing.T) {
 	block := SudoBlock()
-	guard := strings.Index(block, "hostr cutover needs at least one /etc/systemd/network/*.network file")
+	guard := strings.Index(block, "routa cutover needs at least one /etc/systemd/network/*.network file")
 	sysctl := strings.Index(block, "echo 'net.ipv4.ip_unprivileged_port_start=80'")
 	resolv := strings.Index(block, "rm -f /etc/resolv.conf")
 	if guard == -1 || sysctl == -1 || resolv == -1 {
@@ -103,11 +103,11 @@ func TestSudoBlockChecksNetworkFilesBeforeMutatingSystem(t *testing.T) {
 	}
 }
 
-func TestRollbackBlockRemovesHostrRouting(t *testing.T) {
+func TestRollbackBlockRemovesRoutaRouting(t *testing.T) {
 	block := SudoRollbackBlock()
 	for _, want := range []string{
-		`rm -f "$d/hostr.conf"`,
-		"rm -f /etc/systemd/resolved.conf.d/hostr.conf",
+		`rm -f "$d/routa.conf"`,
+		"rm -f /etc/systemd/resolved.conf.d/routa.conf",
 		"if [ -f /opt/valet-linux/resolv.conf ]; then",
 		"ln -sf /opt/valet-linux/resolv.conf /etc/resolv.conf",
 		"ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf",
@@ -121,7 +121,7 @@ func TestRollbackBlockRemovesHostrRouting(t *testing.T) {
 func TestRollbackBlockRestoresResolverBeforeSysctl(t *testing.T) {
 	block := SudoRollbackBlock()
 	resolv := strings.Index(block, "rm -f /etc/resolv.conf")
-	sysctl := strings.Index(block, "rm -f /etc/sysctl.d/50-hostr.conf")
+	sysctl := strings.Index(block, "rm -f /etc/sysctl.d/50-routa.conf")
 	if resolv == -1 || sysctl == -1 {
 		t.Fatalf("rollback block missing expected resolver or sysctl restoration:\n%s", block)
 	}

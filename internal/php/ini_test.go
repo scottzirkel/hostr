@@ -63,7 +63,7 @@ func TestWriteFPMConfigIncludesINISettings(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := filepath.Join(os.Getenv("XDG_STATE_HOME"), "hostr", "run", "php-fpm-8.4.conf")
+	path := filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.conf")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

@@ -1,5 +1,5 @@
-// Package site holds hostr's site model: parked directories, explicit links,
-// state persistence (JSON in $XDG_CONFIG_HOME/hostr/state.json), Caddy
+// Package site holds routa's site model: parked directories, explicit links,
+// state persistence (JSON in $XDG_CONFIG_HOME/routa/state.json), Caddy
 // fragment rendering, and a reload trigger.
 package site
 
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/scottzirkel/hostr/internal/paths"
-	"github.com/scottzirkel/hostr/internal/systemd"
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 type Kind string
@@ -36,11 +36,12 @@ type Link struct {
 	Secure bool   `json:"secure"`
 }
 
-const CurrentStateVersion = 1
+const CurrentStateVersion = 2
 
 type State struct {
 	Version    int      `json:"version"`
 	Parked     []string `json:"parked"`
+	Ignored    []string `json:"ignored,omitempty"`
 	Links      []Link   `json:"links"`
 	DefaultPHP string   `json:"default_php,omitempty"`
 }
@@ -126,7 +127,7 @@ func normalizeLoadedState(s *State) error {
 		// Legacy pre-version state files are the v1 shape.
 		s.Version = CurrentStateVersion
 	case s.Version > CurrentStateVersion:
-		return fmt.Errorf("state file %s has unsupported version %d; this hostr supports up to version %d", statePath(), s.Version, CurrentStateVersion)
+		return fmt.Errorf("state file %s has unsupported version %d; this routa supports up to version %d", statePath(), s.Version, CurrentStateVersion)
 	case s.Version < 0:
 		return fmt.Errorf("state file %s has invalid version %d", statePath(), s.Version)
 	}
@@ -148,6 +149,9 @@ func (s *State) Resolve() []Resolved {
 			}
 			name := strings.ToLower(e.Name())
 			if ValidateName(name) != nil {
+				continue
+			}
+			if s.Ignores(name) {
 				continue
 			}
 			p := filepath.Join(dir, e.Name())
@@ -250,9 +254,10 @@ func build(name, path, root, target, php string, secure bool, defaultPHP string)
 // Heuristic order, from most specific to least:
 //  1. Laravel: composer.json + public/index.php → PHP, docroot = public
 //  2. Plain PHP at root: index.php → PHP, docroot = root
-//  3. Built static output: dist/ | out/ | build/ | _site/ with index.html → static
-//  4. Static at root: index.html → static, docroot = root
-//  5. Fallback: serve the directory itself (file_server may 404 if empty)
+//  3. Public static output: public/index.html → static, docroot = public
+//  4. Built static output: dist/ | out/ | build/ | _site/ with index.html → static
+//  5. Static at root: index.html → static, docroot = root
+//  6. Fallback: serve the directory itself (file_server may 404 if empty)
 func detect(path string) (Kind, string) {
 	if exists(filepath.Join(path, "composer.json")) &&
 		exists(filepath.Join(path, "public", "index.php")) {
@@ -260,6 +265,9 @@ func detect(path string) (Kind, string) {
 	}
 	if exists(filepath.Join(path, "index.php")) {
 		return KindPHP, path
+	}
+	if exists(filepath.Join(path, "public", "index.html")) {
+		return KindStatic, filepath.Join(path, "public")
 	}
 	for _, sub := range []string{"dist", "out", "build", "_site"} {
 		if exists(filepath.Join(path, sub, "index.html")) {
@@ -301,6 +309,42 @@ func RemoveParked(s *State, dir string) {
 		}
 	}
 	s.Parked = out
+}
+
+func AddIgnored(s *State, name string) {
+	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".test")
+	for _, ignored := range s.Ignored {
+		if ignored == name {
+			return
+		}
+	}
+	s.Ignored = append(s.Ignored, name)
+	sort.Strings(s.Ignored)
+}
+
+func RemoveIgnored(s *State, name string) bool {
+	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".test")
+	out := s.Ignored[:0]
+	removed := false
+	for _, ignored := range s.Ignored {
+		if ignored == name {
+			removed = true
+			continue
+		}
+		out = append(out, ignored)
+	}
+	s.Ignored = out
+	return removed
+}
+
+func (s *State) Ignores(name string) bool {
+	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), ".test")
+	for _, ignored := range s.Ignored {
+		if ignored == name {
+			return true
+		}
+	}
+	return false
 }
 
 func AddLink(s *State, l Link) {
@@ -345,8 +389,10 @@ const fragmentTmpl = `{{.SiteAddress}} {
 {{- if .PHP}}
 	php_fastcgi {{.SockPathCaddy}}
 {{- else}}
-	respond "hostr: {{.Name}} is a PHP site but no PHP version is installed. Run 'hostr php install <ver>'." 503
+	respond "routa: {{.Name}} is a PHP site but no PHP version is installed. Run 'routa php install <ver>'." 503
 {{- end}}
+{{- else}}
+	try_files {path} {path}/ /index.html
 {{- end}}
 	file_server
 {{- end}}
@@ -434,7 +480,7 @@ func caddyQuote(s string) string {
 // Reload regenerates fragments and asks Caddy to pick them up.
 // systemctl --user reload calls `caddy reload --config <path>`.
 func ReloadCaddy() error {
-	cmd := []string{"reload", "hostr-caddy.service"}
+	cmd := []string{"reload", "routa-caddy.service"}
 	return systemctlUser(cmd...)
 }
 

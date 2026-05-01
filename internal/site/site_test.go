@@ -136,6 +136,57 @@ func TestResolveCombinesParkedDirsLinksProxyAndDefaultPHP(t *testing.T) {
 	}
 }
 
+func TestResolveSkipsIgnoredParkedSitesButAllowsExplicitLinks(t *testing.T) {
+	parked := t.TempDir()
+	for _, dir := range []string{"ignored", "visible"} {
+		if err := os.MkdirAll(filepath.Join(parked, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		Parked:  []string{parked},
+		Ignored: []string{"ignored"},
+		Links: []Link{
+			{Name: "ignored", Target: "127.0.0.1:5173", Secure: true},
+		},
+	}).Resolve()
+
+	if len(resolved) != 2 {
+		t.Fatalf("resolved = %#v, want ignored explicit link plus visible parked site", resolved)
+	}
+	byName := resolvedByName(resolved)
+	if got := byName["ignored"]; got.Kind != KindProxy || got.Target != "127.0.0.1:5173" {
+		t.Fatalf("ignored explicit link = %#v", got)
+	}
+	if got := byName["visible"]; got.Kind != KindStatic || got.Path != filepath.Join(parked, "visible") {
+		t.Fatalf("visible parked site = %#v", got)
+	}
+}
+
+func TestIgnoredMutationsNormalizeAndSort(t *testing.T) {
+	state := &State{}
+	AddIgnored(state, "Warboard.test")
+	AddIgnored(state, "newaff")
+	AddIgnored(state, "warboard")
+
+	if got := strings.Join(state.Ignored, ","); got != "newaff,warboard" {
+		t.Fatalf("ignored = %#v", state.Ignored)
+	}
+	if !state.Ignores("WARBOARD.test") {
+		t.Fatal("expected warboard to be ignored")
+	}
+	if !RemoveIgnored(state, "warboard.test") {
+		t.Fatal("expected warboard removal")
+	}
+	if RemoveIgnored(state, "missing") {
+		t.Fatal("missing ignored site should not remove")
+	}
+	if got := strings.Join(state.Ignored, ","); got != "newaff" {
+		t.Fatalf("ignored after removal = %#v", state.Ignored)
+	}
+}
+
 func TestResolveCustomRootRoutingBehavior(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -233,6 +284,12 @@ func TestDetectSiteHeuristics(t *testing.T) {
 			wantDocroot: "dist",
 		},
 		{
+			name:        "public static root",
+			files:       []string{"public/index.html"},
+			wantKind:    KindStatic,
+			wantDocroot: "public",
+		},
+		{
 			name:        "root static",
 			files:       []string{"index.html"},
 			wantKind:    KindStatic,
@@ -288,7 +345,7 @@ func TestWriteFragmentsQuotesPathsAndUsesHTTPForInsecureSites(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "sites", "foo.caddy"))
+	data, err := os.ReadFile(filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "sites", "foo.caddy"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +353,8 @@ func TestWriteFragmentsQuotesPathsAndUsesHTTPForInsecureSites(t *testing.T) {
 	for _, want := range []string{
 		"http://foo.test {",
 		"root * " + strconv.Quote(docroot),
-		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hostr", "log", "foo.log")),
+		"try_files {path} {path}/ /index.html",
+		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "foo.log")),
 		"roll_size 10MiB",
 		"roll_keep 5",
 		"roll_keep_for 720h",
@@ -380,12 +438,15 @@ func TestWriteFragmentsRendersPHPSiteWithSocket(t *testing.T) {
 		"app.test {",
 		"tls internal",
 		"root * " + strconv.Quote(docroot),
-		"php_fastcgi " + strconv.Quote("unix/"+filepath.Join(os.Getenv("XDG_STATE_HOME"), "hostr", "run", "php-fpm-8.4.sock")),
+		"php_fastcgi " + strconv.Quote("unix/"+filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.sock")),
 		"file_server",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered fragment missing %q:\n%s", want, content)
 		}
+	}
+	if strings.Contains(content, "try_files {path} {path}/ /index.html") {
+		t.Fatalf("PHP fragment should leave routing to php_fastcgi:\n%s", content)
 	}
 }
 
@@ -404,7 +465,7 @@ func TestWriteFragmentsRendersMissingPHPFallback(t *testing.T) {
 
 	content := readFragment(t, "app")
 	for _, want := range []string{
-		"respond \"hostr: app is a PHP site but no PHP version is installed. Run 'hostr php install <ver>'.\" 503",
+		"respond \"routa: app is a PHP site but no PHP version is installed. Run 'routa php install <ver>'.\" 503",
 		"file_server",
 	} {
 		if !strings.Contains(content, want) {
@@ -434,7 +495,7 @@ func TestWriteFragmentsRendersProxySite(t *testing.T) {
 		"vite.test {",
 		"tls internal",
 		"reverse_proxy " + strconv.Quote("127.0.0.1:5173"),
-		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "hostr", "log", "vite.log")),
+		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "vite.log")),
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered fragment missing %q:\n%s", want, content)
@@ -538,7 +599,7 @@ func readFragment(t *testing.T, name string) string {
 }
 
 func fragmentPath(name string) string {
-	return filepath.Join(os.Getenv("XDG_DATA_HOME"), "hostr", "sites", name+".caddy")
+	return filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "sites", name+".caddy")
 }
 
 func writeStateFile(t *testing.T, content string) {

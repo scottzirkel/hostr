@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/scottzirkel/hostr/internal/paths"
+	"github.com/scottzirkel/routa/internal/paths"
 )
 
 // fpm config — one per spec (the spec is what the user wrote: "8.3" or "8.3.30")
@@ -33,7 +33,7 @@ decorate_workers_output = no
 
 // systemd template — %i is the version spec.
 const fpmUnitTmpl = `[Unit]
-Description=hostr PHP-FPM (%i)
+Description=routa PHP-FPM (%i)
 After=network.target
 
 [Service]
@@ -92,7 +92,7 @@ func EnsureSystemdTemplate() error {
 		return err
 	}
 	t := template.Must(template.New("u").Parse(fpmUnitTmpl))
-	dest := filepath.Join(paths.SystemdUserDir(), "hostr-php@.service")
+	dest := filepath.Join(paths.SystemdUserDir(), "routa-php@.service")
 	f, err := os.Create(dest)
 	if err != nil {
 		return err

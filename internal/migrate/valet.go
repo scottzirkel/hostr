@@ -1,4 +1,4 @@
-// Package migrate imports an existing local PHP dev configuration into hostr's state.
+// Package migrate imports an existing local PHP dev configuration into routa's state.
 // Reads ~/.valet/{config.json,Sites,Certificates,Nginx} and produces a Plan
 // the caller can preview or apply.
 package migrate
@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
 type ValetConfig struct {
@@ -47,7 +47,7 @@ func BuildPlan(cfg *ValetConfig) (*Plan, error) {
 
 	if cfg.Domain != "" && cfg.Domain != "test" {
 		p.Warnings = append(p.Warnings,
-			fmt.Sprintf("valet domain is %q; hostr currently only handles .test — sites will be served under .test", cfg.Domain))
+			fmt.Sprintf("valet domain is %q; routa currently only handles .test — sites will be served under .test", cfg.Domain))
 	}
 
 	entries, err := os.ReadDir(valetPath("Sites"))
@@ -83,7 +83,7 @@ func BuildPlan(cfg *ValetConfig) (*Plan, error) {
 }
 
 // Capture the first Nginx root directive. If it points inside the linked site,
-// store it as a relative hostr --root override so the state stays portable.
+// store it as a relative routa --root override so the state stays portable.
 var nginxRootRE = regexp.MustCompile(`(?m)^\s*root\s+(.+?);`)
 
 func nginxRoot(name, sitePath string) string {

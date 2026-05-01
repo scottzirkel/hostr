@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/scottzirkel/hostr/internal/paths"
+	"github.com/scottzirkel/routa/internal/paths"
 )
 
 var iniKeyRE = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -165,7 +165,7 @@ func EnsureINIFile(spec string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	return os.WriteFile(path, []byte("; hostr PHP settings\n"), 0o644)
+	return os.WriteFile(path, []byte("; routa PHP settings\n"), 0o644)
 }
 
 func validateINISetting(key, value string) error {

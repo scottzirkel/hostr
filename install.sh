@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build hostr and symlink it into ~/.local/bin so you can run it from anywhere.
+# Build routa and symlink it into ~/.local/bin so you can run it from anywhere.
 # Re-running picks up the latest build automatically (the symlink doesn't change).
 set -e
 
@@ -8,15 +8,15 @@ cd "$(dirname "$0")"
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-PKG="github.com/scottzirkel/hostr/cmd"
+PKG="github.com/scottzirkel/routa/cmd"
 
-echo "→ building hostr ($VERSION, $COMMIT)"
-go build -ldflags "-X $PKG.Version=$VERSION -X $PKG.Commit=$COMMIT -X $PKG.BuildDate=$BUILD_DATE" -o hostr .
+echo "→ building routa ($VERSION, $COMMIT)"
+go build -ldflags "-X $PKG.Version=$VERSION -X $PKG.Commit=$COMMIT -X $PKG.BuildDate=$BUILD_DATE" -o routa .
 
 mkdir -p "$HOME/.local/bin"
-target="$(realpath ./hostr)"
-ln -sf "$target" "$HOME/.local/bin/hostr"
-echo "✓ ~/.local/bin/hostr → $target"
+target="$(realpath ./routa)"
+ln -sf "$target" "$HOME/.local/bin/routa"
+echo "✓ ~/.local/bin/routa → $target"
 
 case ":$PATH:" in
     *":$HOME/.local/bin:"*)
@@ -30,4 +30,4 @@ case ":$PATH:" in
 esac
 
 echo
-echo "Test: hostr version && hostr status"
+echo "Test: routa version && routa status"

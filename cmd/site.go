@@ -8,13 +8,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/scottzirkel/hostr/internal/site"
+	"github.com/scottzirkel/routa/internal/site"
 )
 
-var parkCmd = &cobra.Command{
-	Use:   "park [dir]",
-	Short: "Mark a directory as parked — every subdir becomes <name>.test",
-	Args:  cobra.MaximumNArgs(1),
+var trackCmd = &cobra.Command{
+	Use:     "track [dir]",
+	Aliases: []string{"park"},
+	Short:   "Track a directory — every subdir becomes <name>.test",
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		dir, err := resolveDir(args)
 		if err != nil {
@@ -25,14 +26,15 @@ var parkCmd = &cobra.Command{
 			return err
 		}
 		site.AddParked(s, dir)
-		return commitAndReload(s, fmt.Sprintf("parked %s", dir))
+		return commitAndReload(s, fmt.Sprintf("tracking %s", dir))
 	},
 }
 
-var unparkCmd = &cobra.Command{
-	Use:   "unpark [dir]",
-	Short: "Remove a parked directory",
-	Args:  cobra.MaximumNArgs(1),
+var untrackCmd = &cobra.Command{
+	Use:     "untrack [dir]",
+	Aliases: []string{"unpark"},
+	Short:   "Stop tracking a directory",
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		dir, err := resolveDir(args)
 		if err != nil {
@@ -43,7 +45,7 @@ var unparkCmd = &cobra.Command{
 			return err
 		}
 		site.RemoveParked(s, dir)
-		return commitAndReload(s, fmt.Sprintf("unparked %s", dir))
+		return commitAndReload(s, fmt.Sprintf("stopped tracking %s", dir))
 	},
 }
 
@@ -52,7 +54,7 @@ var linkRoot string
 var linkCmd = &cobra.Command{
 	Use:   "link [name]",
 	Short: "Link the current directory as <name>.test (defaults to dir basename)",
-	Long: `Link the current directory as <name>.test. By default hostr auto-detects
+	Long: `Link the current directory as <name>.test. By default routa auto-detects
 the docroot (Laravel public/, Astro dist/, etc). Use --root to override
 when the heuristic picks the wrong dir — e.g. for a vite build you might
 say --root dist, or for a custom layout --root web/public.`,
@@ -107,6 +109,44 @@ var unlinkCmd = &cobra.Command{
 	},
 }
 
+var ignoreCmd = &cobra.Command{
+	Use:   "ignore <name>",
+	Short: "Ignore an auto-discovered tracked site",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		name, err := normalizeSiteName(args[0])
+		if err != nil {
+			return err
+		}
+		s, err := site.Load()
+		if err != nil {
+			return err
+		}
+		site.AddIgnored(s, name)
+		return commitAndReload(s, fmt.Sprintf("ignored %s.test", name))
+	},
+}
+
+var unignoreCmd = &cobra.Command{
+	Use:   "unignore <name>",
+	Short: "Restore an ignored tracked site",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(_ *cobra.Command, args []string) error {
+		name, err := normalizeSiteName(args[0])
+		if err != nil {
+			return err
+		}
+		s, err := site.Load()
+		if err != nil {
+			return err
+		}
+		if !site.RemoveIgnored(s, name) {
+			return fmt.Errorf("no ignored site named %s", name)
+		}
+		return commitAndReload(s, fmt.Sprintf("restored %s.test", name))
+	},
+}
+
 var isolateCmd = &cobra.Command{
 	Use:   "isolate <name> <php-version>",
 	Short: "Pin a site to a specific PHP version",
@@ -130,7 +170,7 @@ var isolateCmd = &cobra.Command{
 				return commitAndReload(s, fmt.Sprintf("pinned %s to PHP %s", name, ver))
 			}
 		}
-		return fmt.Errorf("no link named %s — for parked sites, use `link %s` first to override", name, name)
+		return fmt.Errorf("no link named %s — for tracked sites, use `link %s` first to override", name, name)
 	},
 }
 
@@ -200,7 +240,7 @@ var secureCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(parkCmd, unparkCmd, linkCmd, unlinkCmd, isolateCmd, secureCmd, proxyCmd)
+	rootCmd.AddCommand(trackCmd, untrackCmd, linkCmd, unlinkCmd, ignoreCmd, unignoreCmd, isolateCmd, secureCmd, proxyCmd)
 }
 
 func resolveDir(args []string) (string, error) {

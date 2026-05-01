@@ -30,7 +30,7 @@ func Run() []Check {
 		checkSystemdUser(),
 		checkRequiredBinary("caddy", "Required as the reverse proxy. Install Caddy with your system package manager."),
 		checkOptionalBinary("dnsmasq", "Optional fallback. Already present is fine."),
-		checkRequiredBinary("trust", "Required to install hostr's local CA into the system trust store. Usually provided by p11-kit."),
+		checkRequiredBinary("trust", "Required to install routa's local CA into the system trust store. Usually provided by p11-kit."),
 	}
 }
 
@@ -53,7 +53,7 @@ func checkResolvConf() Check {
 	switch {
 	case strings.Contains(target, "valet-linux"):
 		c.Status = Warn
-		c.Hint = "Another local dev resolver owns your resolver. `hostr install` uses alt ports. `hostr cutover` will atomically swap once you've verified."
+		c.Hint = "Another local dev resolver owns your resolver. `routa install` uses alt ports. `routa cutover` will atomically swap once you've verified."
 	case strings.Contains(target, "systemd"):
 		c.Status = OK
 	default:
@@ -68,7 +68,7 @@ func checkLegacyLocalDevStack() Check {
 	if _, err := os.Stat("/opt/valet-linux"); err == nil {
 		c.Status = Warn
 		c.Detail = "existing local dev stack detected"
-		c.Hint = "OK during install — hostr uses alt ports. Cutover will stop legacy services and reclaim 80/443/53."
+		c.Hint = "OK during install — routa uses alt ports. Cutover will stop legacy services and reclaim 80/443/53."
 		return c
 	}
 	c.Status = OK
@@ -86,7 +86,7 @@ func checkSystemdResolved() Check {
 		c.Status = OK
 	case "inactive", "dead":
 		c.Status = Warn
-		c.Hint = "Cutover will enable systemd-resolved and add a route sending *.test to hostr's DNS. `install` doesn't touch this."
+		c.Hint = "Cutover will enable systemd-resolved and add a route sending *.test to routa's DNS. `install` doesn't touch this."
 	default:
 		c.Status = Warn
 		c.Hint = "Unexpected state — check `systemctl status systemd-resolved`."

@@ -1,4 +1,4 @@
-module github.com/scottzirkel/hostr
+module github.com/scottzirkel/routa
 
 go 1.24.2
 

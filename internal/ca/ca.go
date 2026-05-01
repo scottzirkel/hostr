@@ -49,7 +49,7 @@ func rootPath() (string, error) {
 	}
 	p := filepath.Join(home, ".local/share/caddy/pki/authorities/local/root.crt")
 	if _, err := os.Stat(p); err != nil {
-		return "", fmt.Errorf("Caddy root not found at %s — start hostr-caddy with `hostr install` or `hostr restart caddy`, then check `systemctl --user status hostr-caddy` if it still does not exist: %w", p, err)
+		return "", fmt.Errorf("Caddy root not found at %s — start routa-caddy with `routa install` or `routa restart caddy`, then check `systemctl --user status routa-caddy` if it still does not exist: %w", p, err)
 	}
 	return p, nil
 }
@@ -59,7 +59,7 @@ func trustCommandError(action, cert string, err error) error {
 }
 
 func preAuth(reason string) error {
-	fmt.Fprintf(os.Stderr, "  hostr needs sudo to %s.\n", reason)
+	fmt.Fprintf(os.Stderr, "  routa needs sudo to %s.\n", reason)
 	cmd := exec.Command("sudo", "-v")
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr

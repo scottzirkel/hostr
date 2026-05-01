@@ -13,9 +13,9 @@ func xdg(envVar, fallback string) string {
 	return filepath.Join(home, fallback)
 }
 
-func DataDir() string   { return filepath.Join(xdg("XDG_DATA_HOME", ".local/share"), "hostr") }
-func StateDir() string  { return filepath.Join(xdg("XDG_STATE_HOME", ".local/state"), "hostr") }
-func ConfigDir() string { return filepath.Join(xdg("XDG_CONFIG_HOME", ".config"), "hostr") }
+func DataDir() string   { return filepath.Join(xdg("XDG_DATA_HOME", ".local/share"), "routa") }
+func StateDir() string  { return filepath.Join(xdg("XDG_STATE_HOME", ".local/state"), "routa") }
+func ConfigDir() string { return filepath.Join(xdg("XDG_CONFIG_HOME", ".config"), "routa") }
 func RunDir() string    { return filepath.Join(StateDir(), "run") }
 func LogDir() string    { return filepath.Join(StateDir(), "log") }
 func PHPDir() string    { return filepath.Join(DataDir(), "php") }
