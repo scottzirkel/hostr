@@ -19,12 +19,12 @@ var searchInstallPort string
 var searchStartPort string
 
 var searchInstallCmd = &cobra.Command{
-	Use:   "install <engine> <version>",
+	Use:   "install <engine> <version> [on <port>]",
 	Short: "Write search service unit and prepare its data directory",
-	Args:  searchEngineVersionArgs,
+	Args:  searchEngineVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		engine, version := args[0], args[1]
-		port, err := searchPort(engine, searchInstallPort)
+		port, err := searchPortFromCommand(cmd, args[2:], engine, searchInstallPort)
 		if err != nil {
 			return err
 		}
@@ -37,13 +37,13 @@ var searchInstallCmd = &cobra.Command{
 }
 
 var searchStartCmd = &cobra.Command{
-	Use:   "start <engine> <version>",
+	Use:   "start <engine> <version> [on <port>]",
 	Short: "Write search service unit and start it",
-	Args:  searchEngineVersionArgs,
+	Args:  searchEngineVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		engine, version := args[0], args[1]
 		unit := searchUnitName(engine, version)
-		port, err := searchPort(engine, searchStartPort)
+		port, err := searchPortFromCommand(cmd, args[2:], engine, searchStartPort)
 		if err != nil {
 			return err
 		}
@@ -128,6 +128,13 @@ func searchEngineVersionArgs(_ *cobra.Command, args []string) error {
 	}
 }
 
+func searchEngineVersionPortArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 2 && len(args) != 4 {
+		return fmt.Errorf("usage: %s", cmd.UseLine())
+	}
+	return searchEngineVersionArgs(cmd, args[:2])
+}
+
 func ensureSearchService(engine, version, port string) error {
 	switch engine {
 	case "meilisearch":
@@ -152,6 +159,14 @@ func searchPort(engine, port string) (string, error) {
 		return "", err
 	}
 	return port, nil
+}
+
+func searchPortFromCommand(cmd *cobra.Command, args []string, engine, flagPort string) (string, error) {
+	fallback, err := searchPort(engine, "")
+	if err != nil {
+		return "", err
+	}
+	return portFromCommand(cmd, args, "port", flagPort, fallback, engine)
 }
 
 func searchUnitName(engine, version string) string {

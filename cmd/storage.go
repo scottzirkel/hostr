@@ -21,12 +21,12 @@ var storageStartPort string
 var storageStartConsolePort string
 
 var storageInstallCmd = &cobra.Command{
-	Use:   "install minio <version>",
+	Use:   "install minio <version> [on <port>]",
 	Short: "Write MinIO unit and prepare its data directory",
-	Args:  storageMinIOVersionArgs,
+	Args:  storageMinIOVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		version := args[1]
-		port, consolePort, err := minIOPorts(storageInstallPort, storageInstallConsolePort)
+		port, consolePort, err := minIOPortsFromCommand(cmd, args[2:], storageInstallPort, storageInstallConsolePort)
 		if err != nil {
 			return err
 		}
@@ -39,13 +39,13 @@ var storageInstallCmd = &cobra.Command{
 }
 
 var storageStartCmd = &cobra.Command{
-	Use:   "start minio <version>",
+	Use:   "start minio <version> [on <port>]",
 	Short: "Write MinIO unit and start it",
-	Args:  storageMinIOVersionArgs,
+	Args:  storageMinIOVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		version := args[1]
 		unit := services.MinIOUnitName(version)
-		port, consolePort, err := minIOPorts(storageStartPort, storageStartConsolePort)
+		port, consolePort, err := minIOPortsFromCommand(cmd, args[2:], storageStartPort, storageStartConsolePort)
 		if err != nil {
 			return err
 		}
@@ -121,6 +121,13 @@ func storageMinIOVersionArgs(_ *cobra.Command, args []string) error {
 	return services.ValidateMinIOVersion(args[1])
 }
 
+func storageMinIOVersionPortArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 2 && len(args) != 4 {
+		return fmt.Errorf("usage: %s", cmd.UseLine())
+	}
+	return storageMinIOVersionArgs(cmd, args[:2])
+}
+
 func minIOPorts(port, consolePort string) (string, string, error) {
 	if port == "" {
 		port = services.MinIODefaultPort
@@ -135,6 +142,18 @@ func minIOPorts(port, consolePort string) (string, string, error) {
 		return "", "", err
 	}
 	return port, consolePort, nil
+}
+
+func minIOPortsFromCommand(cmd *cobra.Command, args []string, flagPort, consolePort string) (string, string, error) {
+	_, fallbackConsolePort, err := minIOPorts("", consolePort)
+	if err != nil {
+		return "", "", err
+	}
+	port, err := portFromCommand(cmd, args, "port", flagPort, services.MinIODefaultPort, "MinIO")
+	if err != nil {
+		return "", "", err
+	}
+	return port, fallbackConsolePort, nil
 }
 
 func init() {

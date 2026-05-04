@@ -21,10 +21,11 @@ var mailRestartWebPort string
 var mailRestartSMTPPort string
 
 var mailStartCmd = &cobra.Command{
-	Use:   "start",
+	Use:   "start [on <port>]",
 	Short: "Write Mailpit unit and start routa-mailpit",
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		webPort, smtpPort, err := mailpitPorts(mailStartWebPort, mailStartSMTPPort)
+	Args:  cobra.MaximumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		webPort, smtpPort, err := mailpitPortsFromCommand(cmd, args, mailStartWebPort, mailStartSMTPPort)
 		if err != nil {
 			return err
 		}
@@ -57,10 +58,11 @@ var mailStopCmd = &cobra.Command{
 }
 
 var mailRestartCmd = &cobra.Command{
-	Use:   "restart",
+	Use:   "restart [on <port>]",
 	Short: "Rewrite Mailpit unit and restart routa-mailpit",
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		webPort, smtpPort, err := mailpitPorts(mailRestartWebPort, mailRestartSMTPPort)
+	Args:  cobra.MaximumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		webPort, smtpPort, err := mailpitPortsFromCommand(cmd, args, mailRestartWebPort, mailRestartSMTPPort)
 		if err != nil {
 			return err
 		}
@@ -124,6 +126,18 @@ func mailpitPorts(webPort, smtpPort string) (string, string, error) {
 		return "", "", err
 	}
 	if err := services.ValidateTCPPort("Mailpit SMTP", smtpPort); err != nil {
+		return "", "", err
+	}
+	return webPort, smtpPort, nil
+}
+
+func mailpitPortsFromCommand(cmd *cobra.Command, args []string, webPort, smtpPort string) (string, string, error) {
+	_, smtpPort, err := mailpitPorts("", smtpPort)
+	if err != nil {
+		return "", "", err
+	}
+	webPort, err = portFromCommand(cmd, args, "port", webPort, services.MailpitWebPort, "Mailpit web")
+	if err != nil {
 		return "", "", err
 	}
 	return webPort, smtpPort, nil

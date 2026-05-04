@@ -90,12 +90,12 @@ routa track / untrack / ignore / unignore / link / unlink / alias / unalias / is
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
 routa redis start [--port 6380] / stop / restart / status
-routa mail start [--port 8026 --smtp-port 1026] / stop / restart / status / proxy
-routa db start mariadb 11.4 --port 3307
-routa db start postgres 16 --port 5433
-routa search start meilisearch 1.12 --port 7701
-routa search start typesense 28 --port 8109
-routa storage start minio RELEASE.2026-05-01T00-00-00Z --port 9002 --console-port 9003
+routa mail start on 8026 --smtp-port 1026 / stop / restart / status / proxy
+routa db start mariadb 11.4 on 3307
+routa db start postgres 16 on 5433
+routa search start meilisearch 1.12 on 7701
+routa search start typesense 28 on 8109
+routa storage start minio RELEASE.2026-05-01T00-00-00Z on 9002 --console-port 9003
 routa version                   # print version, commit, build date
 ```
 
@@ -283,6 +283,7 @@ routa can manage Mailpit as a systemd user service:
 ```bash
 routa mail start
 routa mail start --port 8026 --smtp-port 1026
+routa mail start on 8026 --smtp-port 1026
 routa mail proxy        # mail.test -> 127.0.0.1:8025
 routa mail status
 routa mail stop
@@ -300,11 +301,12 @@ routa can manage local MariaDB and Postgres instances as systemd user services:
 ```bash
 routa db install mariadb 11.4
 routa db start mariadb 11.4 --port 3307
+routa db start mariadb 11.4 on 3307
 routa db status mariadb 11.4
 routa db stop mariadb 11.4
 
 routa db install postgres 16
-routa db start postgres 16 --port 5433
+routa db start postgres 16 on 5433
 routa db list
 ```
 
@@ -323,11 +325,11 @@ routa can manage Meilisearch and Typesense as version-isolated search services:
 
 ```bash
 routa search install meilisearch 1.12
-routa search start meilisearch 1.12 --port 7701
+routa search start meilisearch 1.12 on 7701
 routa search status meilisearch 1.12
 
 routa search install typesense 28
-routa search start typesense 28 --port 8109
+routa search start typesense 28 on 8109
 routa search list
 ```
 
@@ -341,7 +343,7 @@ routa can manage MinIO as a version-isolated S3-compatible local service:
 
 ```bash
 routa storage install minio RELEASE.2026-05-01T00-00-00Z
-routa storage start minio RELEASE.2026-05-01T00-00-00Z --port 9002 --console-port 9003
+routa storage start minio RELEASE.2026-05-01T00-00-00Z on 9002 --console-port 9003
 routa storage status minio RELEASE.2026-05-01T00-00-00Z
 routa storage list
 ```

@@ -27,3 +27,13 @@ func TestMailpitProxyLinkAcceptsCustomName(t *testing.T) {
 		t.Fatalf("link = %#v", link)
 	}
 }
+
+func TestMailpitPortsFromCommandAcceptsOnAlias(t *testing.T) {
+	webPort, smtpPort, err := mailpitPortsFromCommand(mailStartCmd, []string{"on", "8026"}, "", "1026")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if webPort != "8026" || smtpPort != "1026" {
+		t.Fatalf("ports = %q, %q", webPort, smtpPort)
+	}
+}

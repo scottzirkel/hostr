@@ -31,6 +31,16 @@ func TestSearchEngineVersionArgs(t *testing.T) {
 	}
 }
 
+func TestSearchPortFromCommandAcceptsOnAlias(t *testing.T) {
+	got, err := searchPortFromCommand(searchStartCmd, []string{"on", "7710"}, "meilisearch", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "7710" {
+		t.Fatalf("port = %q", got)
+	}
+}
+
 func TestSearchListShowsInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
@@ -83,6 +93,16 @@ func TestStorageMinIOVersionArgs(t *testing.T) {
 		if err := storageMinIOVersionArgs(storageInstallCmd, args); err == nil {
 			t.Fatalf("expected error for args %#v", args)
 		}
+	}
+}
+
+func TestMinIOPortsFromCommandAcceptsOnAlias(t *testing.T) {
+	port, consolePort, err := minIOPortsFromCommand(storageStartCmd, []string{"on", "9010"}, "", "9011")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port != "9010" || consolePort != "9011" {
+		t.Fatalf("ports = %q, %q", port, consolePort)
 	}
 }
 

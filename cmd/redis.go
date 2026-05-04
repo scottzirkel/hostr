@@ -119,24 +119,7 @@ func redisPortConflictError(port string) error {
 }
 
 func redisPortFromCommand(cmd *cobra.Command, args []string, flagPort, fallback string) (string, error) {
-	port := fallback
-	flagChanged := cmd.Flags().Changed("port")
-	if flagChanged {
-		port = flagPort
-	}
-	if len(args) > 0 {
-		if len(args) != 2 || args[0] != "on" {
-			return "", fmt.Errorf("usage: %s", cmd.UseLine())
-		}
-		if flagChanged {
-			return "", fmt.Errorf("use either --port or 'on <port>', not both")
-		}
-		port = args[1]
-	}
-	if err := services.ValidateRedisPort(port); err != nil {
-		return "", err
-	}
-	return port, nil
+	return portFromCommand(cmd, args, "port", flagPort, fallback, "Redis")
 }
 
 func init() {

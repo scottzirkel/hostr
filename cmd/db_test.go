@@ -30,6 +30,16 @@ func TestDBEngineVersionArgs(t *testing.T) {
 	}
 }
 
+func TestDatabasePortFromCommandAcceptsOnAlias(t *testing.T) {
+	got, err := databasePortFromCommand(dbStartCmd, []string{"on", "3307"}, "mariadb", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "3307" {
+		t.Fatalf("port = %q", got)
+	}
+}
+
 func TestDBListShowsMariaDBInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

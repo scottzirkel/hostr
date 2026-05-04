@@ -40,3 +40,16 @@ func TestRedisPortConflictMessageIncludesAddress(t *testing.T) {
 		t.Fatalf("conflict message missing address: %q", got)
 	}
 }
+
+func TestRedisPortFromCommandRejectsFlagAndOnAlias(t *testing.T) {
+	redisStartPort = "6380"
+	redisStartCmd.Flags().Set("port", "6380")
+	t.Cleanup(func() {
+		redisStartCmd.Flags().Set("port", services.RedisDefaultPort)
+		redisStartPort = services.RedisDefaultPort
+	})
+
+	if _, err := redisPortFromCommand(redisStartCmd, []string{"on", "6381"}, redisStartPort, services.RedisDefaultPort); err == nil {
+		t.Fatal("expected error")
+	}
+}

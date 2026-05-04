@@ -19,13 +19,13 @@ var dbInstallPort string
 var dbStartPort string
 
 var dbInstallCmd = &cobra.Command{
-	Use:   "install <engine> <version>",
+	Use:   "install <engine> <version> [on <port>]",
 	Short: "Write database config/unit and initialize its data directory",
-	Args:  dbEngineVersionArgs,
+	Args:  dbEngineVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		engine := args[0]
 		version := args[1]
-		port, err := databasePort(engine, dbInstallPort)
+		port, err := databasePortFromCommand(cmd, args[2:], engine, dbInstallPort)
 		if err != nil {
 			return err
 		}
@@ -38,14 +38,14 @@ var dbInstallCmd = &cobra.Command{
 }
 
 var dbStartCmd = &cobra.Command{
-	Use:   "start <engine> <version>",
+	Use:   "start <engine> <version> [on <port>]",
 	Short: "Write database config/unit and start it",
-	Args:  dbEngineVersionArgs,
+	Args:  dbEngineVersionPortArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		engine := args[0]
 		version := args[1]
 		unit := databaseUnitName(engine, version)
-		port, err := databasePort(engine, dbStartPort)
+		port, err := databasePortFromCommand(cmd, args[2:], engine, dbStartPort)
 		if err != nil {
 			return err
 		}
@@ -131,6 +131,13 @@ func dbEngineVersionArgs(_ *cobra.Command, args []string) error {
 	}
 }
 
+func dbEngineVersionPortArgs(cmd *cobra.Command, args []string) error {
+	if len(args) != 2 && len(args) != 4 {
+		return fmt.Errorf("usage: %s", cmd.UseLine())
+	}
+	return dbEngineVersionArgs(cmd, args[:2])
+}
+
 func ensureDatabase(engine, version, port string) error {
 	switch engine {
 	case "mariadb":
@@ -155,6 +162,14 @@ func databasePort(engine, port string) (string, error) {
 		return "", err
 	}
 	return port, nil
+}
+
+func databasePortFromCommand(cmd *cobra.Command, args []string, engine, flagPort string) (string, error) {
+	fallback, err := databasePort(engine, "")
+	if err != nil {
+		return "", err
+	}
+	return portFromCommand(cmd, args, "port", flagPort, fallback, engine)
 }
 
 func databaseUnitName(engine, version string) string {
