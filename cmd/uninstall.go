@@ -60,6 +60,11 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 
 func routaUnitsForUninstall() []string {
 	units := []string{"routa-caddy.service", "routa-dns.service", services.RedisUnitName, services.MailpitUnitName}
+	units = append(units, services.MariaDBUnitNamesForUninstall()...)
+	units = append(units, services.PostgresUnitNamesForUninstall()...)
+	units = append(units, services.MeilisearchUnitNamesForUninstall()...)
+	units = append(units, services.TypesenseUnitNamesForUninstall()...)
+	units = append(units, services.MinIOUnitNamesForUninstall()...)
 	return append(units, phpUnitsForUninstall(paths.SystemdUserDir(), paths.RunDir())...)
 }
 

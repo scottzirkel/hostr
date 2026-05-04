@@ -71,6 +71,11 @@ func TestRoutaUnitsForUninstallIncludesDiscoveredPHPUnits(t *testing.T) {
 	}
 	for _, path := range []string{
 		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-php@8.3.service"),
+		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-mariadb@11.4.service"),
+		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-postgres@16.service"),
+		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-meilisearch@1.12.service"),
+		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-typesense@28.service"),
+		filepath.Join(configHome, "systemd", "user", "default.target.wants", "routa-minio@RELEASE.2026-05-01T00-00-00Z.service"),
 		filepath.Join(stateHome, "routa", "run", "php-fpm-8.4.sock"),
 	} {
 		if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
@@ -79,7 +84,7 @@ func TestRoutaUnitsForUninstallIncludesDiscoveredPHPUnits(t *testing.T) {
 	}
 
 	got := routaUnitsForUninstall()
-	want := []string{"routa-caddy.service", "routa-dns.service", "routa-redis.service", "routa-mailpit.service", "routa-php@8.3.service", "routa-php@8.4.service"}
+	want := []string{"routa-caddy.service", "routa-dns.service", "routa-redis.service", "routa-mailpit.service", "routa-mariadb@11.4.service", "routa-postgres@16.service", "routa-meilisearch@1.12.service", "routa-typesense@28.service", "routa-minio@RELEASE.2026-05-01T00-00-00Z.service", "routa-php@8.3.service", "routa-php@8.4.service"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("routaUnitsForUninstall() = %#v, want %#v", got, want)
 	}

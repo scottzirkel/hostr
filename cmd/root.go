@@ -21,6 +21,7 @@ systemd user units. No daemon of its own.`,
 }
 
 func Execute() {
+	configureRootExecution(rootCmd)
 	if err := rootCmd.Execute(); err != nil {
 		if exit, ok := err.(interface{ ExitCode() int }); ok {
 			os.Exit(exit.ExitCode())
@@ -28,4 +29,9 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func configureRootExecution(cmd *cobra.Command) {
+	cmd.SilenceErrors = true
+	cmd.SilenceUsage = true
 }

@@ -9,8 +9,8 @@ import (
 
 const (
 	MailpitUnitName = "routa-mailpit.service"
-	MailpitWebAddr  = "127.0.0.1:8025"
-	MailpitSMTPAddr = "127.0.0.1:1025"
+	MailpitWebPort  = "8025"
+	MailpitSMTPPort = "1025"
 )
 
 const mailpitUnitTmpl = `[Unit]
@@ -36,14 +36,26 @@ type mailpitUnitData struct {
 }
 
 func Mailpit() Definition {
+	return MailpitWithPorts(MailpitWebPort, MailpitSMTPPort)
+}
+
+func MailpitWithPorts(webPort, smtpPort string) Definition {
 	return Definition{
 		Name:        "mailpit",
 		UnitName:    MailpitUnitName,
 		BinaryName:  "mailpit",
 		DataDir:     MailpitDataDir(),
-		RenderUnit:  RenderMailpitUnit,
+		RenderUnit:  func(binary string) (string, error) { return RenderMailpitUnitWithPorts(binary, webPort, smtpPort) },
 		WriteConfig: EnsureMailpitDataDir,
 	}
+}
+
+func MailpitWebAddr() string {
+	return "127.0.0.1:" + MailpitWebPort
+}
+
+func MailpitSMTPAddr() string {
+	return "127.0.0.1:" + MailpitSMTPPort
 }
 
 func MailpitDataDir() string {
@@ -55,13 +67,23 @@ func MailpitDatabasePath() string {
 }
 
 func RenderMailpitUnit(binary string) (string, error) {
+	return RenderMailpitUnitWithPorts(binary, MailpitWebPort, MailpitSMTPPort)
+}
+
+func RenderMailpitUnitWithPorts(binary, webPort, smtpPort string) (string, error) {
+	if err := ValidateTCPPort("Mailpit web", webPort); err != nil {
+		return "", err
+	}
+	if err := ValidateTCPPort("Mailpit SMTP", smtpPort); err != nil {
+		return "", err
+	}
 	if binary == "" {
 		return "", fmt.Errorf("mailpit binary path cannot be empty")
 	}
 	return render("mailpit-unit", mailpitUnitTmpl, mailpitUnitData{
 		Binary:       binary,
-		WebAddr:      MailpitWebAddr,
-		SMTPAddr:     MailpitSMTPAddr,
+		WebAddr:      "127.0.0.1:" + webPort,
+		SMTPAddr:     "127.0.0.1:" + smtpPort,
 		DatabasePath: MailpitDatabasePath(),
 	})
 }

@@ -15,11 +15,25 @@ var mailCmd = &cobra.Command{
 	Short: "Manage routa Mailpit",
 }
 
+var mailStartWebPort string
+var mailStartSMTPPort string
+var mailRestartWebPort string
+var mailRestartSMTPPort string
+
 var mailStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Write Mailpit unit and start routa-mailpit",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := services.Ensure(services.Mailpit()); err != nil {
+		webPort, smtpPort, err := mailpitPorts(mailStartWebPort, mailStartSMTPPort)
+		if err != nil {
+			return err
+		}
+		for label, port := range map[string]string{"mailpit web": webPort, "mailpit smtp": smtpPort} {
+			if portBound(localhostAddr(port)) && !systemd.IsActive(services.MailpitUnitName) {
+				return portInUseError(localhostAddr(port), label)
+			}
+		}
+		if err := services.Ensure(services.MailpitWithPorts(webPort, smtpPort)); err != nil {
 			return err
 		}
 		if err := systemd.EnableNow(services.MailpitUnitName); err != nil {
@@ -46,7 +60,11 @@ var mailRestartCmd = &cobra.Command{
 	Use:   "restart",
 	Short: "Rewrite Mailpit unit and restart routa-mailpit",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := services.Ensure(services.Mailpit()); err != nil {
+		webPort, smtpPort, err := mailpitPorts(mailRestartWebPort, mailRestartSMTPPort)
+		if err != nil {
+			return err
+		}
+		if err := services.Ensure(services.MailpitWithPorts(webPort, smtpPort)); err != nil {
 			return err
 		}
 		if err := systemd.RunSystemctl("--user", "restart", services.MailpitUnitName); err != nil {
@@ -92,10 +110,30 @@ func mailpitProxyLink(args []string) (site.Link, error) {
 	if err != nil {
 		return site.Link{}, err
 	}
-	return site.Link{Name: normalized, Target: services.MailpitWebAddr, Secure: true}, nil
+	return site.Link{Name: normalized, Target: services.MailpitWebAddr(), Secure: true}, nil
+}
+
+func mailpitPorts(webPort, smtpPort string) (string, string, error) {
+	if webPort == "" {
+		webPort = services.MailpitWebPort
+	}
+	if smtpPort == "" {
+		smtpPort = services.MailpitSMTPPort
+	}
+	if err := services.ValidateTCPPort("Mailpit web", webPort); err != nil {
+		return "", "", err
+	}
+	if err := services.ValidateTCPPort("Mailpit SMTP", smtpPort); err != nil {
+		return "", "", err
+	}
+	return webPort, smtpPort, nil
 }
 
 func init() {
+	mailStartCmd.Flags().StringVar(&mailStartWebPort, "port", "", "Mailpit web UI TCP port")
+	mailStartCmd.Flags().StringVar(&mailStartSMTPPort, "smtp-port", "", "Mailpit SMTP TCP port")
+	mailRestartCmd.Flags().StringVar(&mailRestartWebPort, "port", "", "Mailpit web UI TCP port")
+	mailRestartCmd.Flags().StringVar(&mailRestartSMTPPort, "smtp-port", "", "Mailpit SMTP TCP port")
 	mailCmd.AddCommand(mailStartCmd, mailStopCmd, mailRestartCmd, mailStatusCmd, mailProxyCmd)
 	rootCmd.AddCommand(mailCmd)
 }

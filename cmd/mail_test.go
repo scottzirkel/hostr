@@ -12,7 +12,7 @@ func TestMailpitProxyLinkDefaultsToMailTest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if link.Name != "mail" || link.Target != services.MailpitWebAddr || !link.Secure {
+	if link.Name != "mail" || link.Target != services.MailpitWebAddr() || !link.Secure {
 		t.Fatalf("link = %#v", link)
 	}
 }
@@ -23,7 +23,7 @@ func TestMailpitProxyLinkAcceptsCustomName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if link.Name != "inbox" || link.Target != services.MailpitWebAddr || !link.Secure {
+	if link.Name != "inbox" || link.Target != services.MailpitWebAddr() || !link.Secure {
 		t.Fatalf("link = %#v", link)
 	}
 }

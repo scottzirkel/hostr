@@ -39,7 +39,7 @@ func TestRenderRedisConfig(t *testing.T) {
 	for _, want := range []string{
 		"bind 127.0.0.1 ::1",
 		"protected-mode yes",
-		"port 6379",
+		"port " + RedisDefaultPort,
 		"daemonize no",
 		"dir " + filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "services", "redis"),
 		"appendonly yes",
@@ -48,6 +48,36 @@ func TestRenderRedisConfig(t *testing.T) {
 		if !strings.Contains(conf, want) {
 			t.Fatalf("Redis config missing %q:\n%s", want, conf)
 		}
+	}
+}
+
+func TestRenderRedisConfigWithCustomPort(t *testing.T) {
+	conf, err := RenderRedisConfigWithPort("6380")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(conf, "port 6380") {
+		t.Fatalf("Redis config missing custom port:\n%s", conf)
+	}
+}
+
+func TestRedisConfiguredPortReadsConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	if err := os.MkdirAll(filepath.Dir(RedisConfigPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(RedisConfigPath(), []byte("port 6380\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := RedisConfiguredPort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "6380" {
+		t.Fatalf("port = %q, want 6380", got)
 	}
 }
 

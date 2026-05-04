@@ -89,8 +89,13 @@ routa php ext list 8.4
 routa track / untrack / ignore / unignore / link / unlink / alias / unalias / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
-routa redis start / stop / restart / status
-routa mail start / stop / restart / status / proxy
+routa redis start [--port 6380] / stop / restart / status
+routa mail start [--port 8026 --smtp-port 1026] / stop / restart / status / proxy
+routa db start mariadb 11.4 --port 3307
+routa db start postgres 16 --port 5433
+routa search start meilisearch 1.12 --port 7701
+routa search start typesense 28 --port 8109
+routa storage start minio RELEASE.2026-05-01T00-00-00Z --port 9002 --console-port 9003
 routa version                   # print version, commit, build date
 ```
 
@@ -259,6 +264,8 @@ routa can manage a local Redis instance as a systemd user service:
 
 ```bash
 routa redis start
+routa redis start --port 6380
+routa redis start on 6380
 routa redis status
 routa redis stop
 ```
@@ -266,7 +273,8 @@ routa redis stop
 `routa redis start` expects `redis-server` to be installed by your system
 package manager. It writes `routa-redis.service`, stores Redis data under
 `~/.local/share/routa/services/redis/`, and binds Redis to localhost on
-`:6379`.
+`:6379` by default. Pass `--port` or `on <port>` to avoid an existing
+Redis-compatible service such as Valkey.
 
 ## Mailpit
 
@@ -274,6 +282,7 @@ routa can manage Mailpit as a systemd user service:
 
 ```bash
 routa mail start
+routa mail start --port 8026 --smtp-port 1026
 routa mail proxy        # mail.test -> 127.0.0.1:8025
 routa mail status
 routa mail stop
@@ -282,7 +291,64 @@ routa mail stop
 `routa mail start` expects `mailpit` to be installed by your system package
 manager. It writes `routa-mailpit.service`, stores Mailpit's persistent
 database under `~/.local/share/routa/services/mailpit/`, binds the web UI to
-`127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025`.
+`127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025` by default.
+
+## Databases
+
+routa can manage local MariaDB and Postgres instances as systemd user services:
+
+```bash
+routa db install mariadb 11.4
+routa db start mariadb 11.4 --port 3307
+routa db status mariadb 11.4
+routa db stop mariadb 11.4
+
+routa db install postgres 16
+routa db start postgres 16 --port 5433
+routa db list
+```
+
+Database services are version-isolated when the system provides matching
+binaries. routa searches common versioned binary names and paths first
+(`postgres-16`, `/usr/lib/postgresql/16/bin/postgres`, `mariadbd-11.4`, and
+similar), then falls back to the unversioned binary only when its `--version`
+output matches the requested version. Data is kept under
+`~/.local/share/routa/services/<engine>/<version>/`; routa initializes missing
+data directories with the distro-provided init tools and does not delete
+database data.
+
+## Search
+
+routa can manage Meilisearch and Typesense as version-isolated search services:
+
+```bash
+routa search install meilisearch 1.12
+routa search start meilisearch 1.12 --port 7701
+routa search status meilisearch 1.12
+
+routa search install typesense 28
+routa search start typesense 28 --port 8109
+routa search list
+```
+
+Search services expect a matching system binary. Data is stored under
+`~/.local/share/routa/services/meilisearch/<version>/` or
+`~/.local/share/routa/services/typesense/<version>/`.
+
+## Object storage
+
+routa can manage MinIO as a version-isolated S3-compatible local service:
+
+```bash
+routa storage install minio RELEASE.2026-05-01T00-00-00Z
+routa storage start minio RELEASE.2026-05-01T00-00-00Z --port 9002 --console-port 9003
+routa storage status minio RELEASE.2026-05-01T00-00-00Z
+routa storage list
+```
+
+MinIO data is stored under `~/.local/share/routa/services/minio/<version>/`.
+The generated environment file sets local development credentials
+`MINIO_ROOT_USER=routa` and `MINIO_ROOT_PASSWORD=routa-local-dev`.
 
 ## TUI
 
@@ -328,8 +394,8 @@ prefix.
 |---|---|
 | `~/.local/share/routa/` | PHP builds, Caddyfile, site fragments, CA stash |
 | `~/.local/state/routa/` | sockets, logs, fpm runtime config |
-| `~/.config/routa/` | `state.json` (versioned tracked dirs, tracked roots, ignored sites, links, aliases, default PHP), PHP ini overrides |
-| `~/.config/systemd/user/routa-*.service` | `routa-dns`, `routa-caddy`, `routa-php@<spec>` |
+| `~/.config/routa/` | `state.json` (versioned tracked dirs, tracked roots, ignored sites, links, aliases, default PHP), PHP ini overrides, optional service config |
+| `~/.config/systemd/user/routa-*.service` | `routa-dns`, `routa-caddy`, `routa-php@<spec>`, optional service units |
 
 ## State file compatibility
 
@@ -343,6 +409,7 @@ instead of guessing how to interpret it.
 - **DNS:** tiny Go responder for `*.test` on `127.0.0.1:1053` (`miekg/dns`). Zero upstream config — answers `127.0.0.1` for `*.test`, NXDOMAIN otherwise.
 - **TLS:** Caddy issues from its built-in local CA. Root cert installed into the system trust store via p11-kit's `trust anchor` (so `curl` and Chromium-family browsers trust it).
 - **PHP:** musl-static builds from [dl.static-php.dev](https://dl.static-php.dev/static-php-cli/bulk) — Laravel-ready extension set, no glibc dependency, plus routa's Laravel-friendly FPM ini defaults. Per-version socket via templated systemd unit `routa-php@<spec>.service`.
+- **Optional services:** Redis, Mailpit, MariaDB, Postgres, Meilisearch, Typesense, and MinIO run as systemd user services using system-installed binaries. Stateful services keep data under `~/.local/share/routa/services/`.
 - **Routing:** Caddy's `php_fastcgi` for PHP sites (Caddy default `try_files` handles Laravel routing). `file_server` for static.
 - **Process management:** systemd user units. routa itself is a stateless CLI — no daemon.
 

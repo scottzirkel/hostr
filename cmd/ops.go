@@ -492,6 +492,31 @@ func installedOptionalServiceUnits() []string {
 			out = append(out, unit)
 		}
 	}
+	for _, unit := range services.MariaDBUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
+	for _, unit := range services.PostgresUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
+	for _, unit := range services.MeilisearchUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
+	for _, unit := range services.TypesenseUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
+	for _, unit := range services.MinIOUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
 	return out
 }
 

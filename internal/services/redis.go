@@ -4,11 +4,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/scottzirkel/routa/internal/paths"
 )
 
-const RedisUnitName = "routa-redis.service"
+const (
+	RedisUnitName     = "routa-redis.service"
+	RedisDefaultPort  = "6379"
+	RedisDefaultAddr  = "127.0.0.1:6379"
+	RedisBinaryName   = "redis-server"
+	redisBindHostIPv4 = "127.0.0.1"
+)
 
 const redisUnitTmpl = `[Unit]
 Description=routa Redis
@@ -27,7 +34,7 @@ WantedBy=default.target
 
 const redisConfigTmpl = `bind 127.0.0.1 ::1
 protected-mode yes
-port 6379
+port {{.Port}}
 daemonize no
 supervised no
 dir {{.DataDir}}
@@ -44,18 +51,27 @@ type redisUnitData struct {
 type redisConfigData struct {
 	DataDir string
 	PIDFile string
+	Port    string
 }
 
 func Redis() Definition {
+	return RedisWithPort(RedisDefaultPort)
+}
+
+func RedisWithPort(port string) Definition {
 	return Definition{
 		Name:        "redis",
 		UnitName:    RedisUnitName,
-		BinaryName:  "redis-server",
+		BinaryName:  RedisBinaryName,
 		ConfigPath:  RedisConfigPath(),
 		DataDir:     RedisDataDir(),
 		RenderUnit:  RenderRedisUnit,
-		WriteConfig: WriteRedisConfig,
+		WriteConfig: func() error { return WriteRedisConfigWithPort(port) },
 	}
+}
+
+func RedisAddr(port string) string {
+	return redisBindHostIPv4 + ":" + port
 }
 
 func RedisDataDir() string {
@@ -81,13 +97,28 @@ func RenderRedisUnit(binary string) (string, error) {
 }
 
 func RenderRedisConfig() (string, error) {
+	return RenderRedisConfigWithPort(RedisDefaultPort)
+}
+
+func RenderRedisConfigWithPort(port string) (string, error) {
+	if err := ValidateRedisPort(port); err != nil {
+		return "", err
+	}
 	return render("redis-config", redisConfigTmpl, redisConfigData{
 		DataDir: RedisDataDir(),
 		PIDFile: RedisPIDFile(),
+		Port:    port,
 	})
 }
 
 func WriteRedisConfig() error {
+	return WriteRedisConfigWithPort(RedisDefaultPort)
+}
+
+func WriteRedisConfigWithPort(port string) error {
+	if err := ValidateRedisPort(port); err != nil {
+		return err
+	}
 	if err := ensureDir(RedisDataDir()); err != nil {
 		return err
 	}
@@ -97,9 +128,40 @@ func WriteRedisConfig() error {
 	if err := ensureDir(paths.RunDir()); err != nil {
 		return err
 	}
-	content, err := RenderRedisConfig()
+	content, err := RenderRedisConfigWithPort(port)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(RedisConfigPath(), []byte(content), 0o644)
+}
+
+func RedisConfiguredPort() (string, error) {
+	data, err := os.ReadFile(RedisConfigPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return RedisDefaultPort, nil
+		}
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || strings.HasPrefix(fields[0], "#") {
+			continue
+		}
+		if fields[0] != "port" {
+			continue
+		}
+		if len(fields) < 2 {
+			return "", fmt.Errorf("invalid Redis port line in %s: %q", RedisConfigPath(), line)
+		}
+		if err := ValidateRedisPort(fields[1]); err != nil {
+			return "", err
+		}
+		return fields[1], nil
+	}
+	return RedisDefaultPort, nil
+}
+
+func ValidateRedisPort(port string) error {
+	return ValidateTCPPort("Redis", port)
 }
