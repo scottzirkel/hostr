@@ -285,6 +285,9 @@ func TestResolveAliasChainUsesFinalTargetConfig(t *testing.T) {
 	if got := byName["v1"]; got.AliasOf != "api" || got.Kind != KindPHP || got.Path != project || got.Docroot != filepath.Join(project, "public") || got.PHP != "8.4" {
 		t.Fatalf("alias chain = %#v", got)
 	}
+	if got := byName["api"]; got.AliasOf != "app" {
+		t.Fatalf("alias should keep immediate target, got %#v", got)
+	}
 }
 
 func TestResolveAliasesSkipMissingCyclesAndConcreteCollisions(t *testing.T) {
@@ -443,6 +446,89 @@ func TestResolveCustomRootRoutingBehavior(t *testing.T) {
 	}
 }
 
+func TestResolveNestedRootOverridesForLinksAndParkedDirs(t *testing.T) {
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	api := filepath.Join(parked, "api")
+	app := filepath.Join(root, "app")
+	for _, file := range []string{
+		filepath.Join(api, "web", "public", "index.php"),
+		filepath.Join(app, "frontend", "public", "index.html"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		Parked:      []string{parked},
+		ParkedRoots: map[string]string{parked: filepath.Join("web", "public")},
+		DefaultPHP:  "8.4",
+		Links:       []Link{{Name: "app", Path: app, Root: filepath.Join("frontend", "public"), Secure: true}},
+	}).Resolve()
+
+	byName := resolvedByName(resolved)
+	if got := byName["api"]; got.Kind != KindPHP || got.Docroot != filepath.Join(api, "web", "public") || got.PHP != "8.4" {
+		t.Fatalf("nested parked root = %#v", got)
+	}
+	if got := byName["app"]; got.Kind != KindStatic || got.Docroot != filepath.Join(app, "frontend", "public") || got.PHP != "" {
+		t.Fatalf("nested link root = %#v", got)
+	}
+}
+
+func TestResolveAbsoluteParkedRootUsesSameDocrootForEveryChild(t *testing.T) {
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	sharedDocroot := filepath.Join(root, "shared-public")
+	for _, dir := range []string{
+		filepath.Join(parked, "api"),
+		filepath.Join(parked, "web"),
+		sharedDocroot,
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(sharedDocroot, "index.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := (&State{
+		Parked:      []string{parked},
+		ParkedRoots: map[string]string{parked: sharedDocroot},
+		DefaultPHP:  "8.4",
+	}).Resolve()
+
+	byName := resolvedByName(resolved)
+	for _, name := range []string{"api", "web"} {
+		if got := byName[name]; got.Kind != KindPHP || got.Docroot != sharedDocroot || got.PHP != "8.4" {
+			t.Fatalf("%s absolute parked root = %#v", name, got)
+		}
+	}
+}
+
+func TestResolveLowercaseNameCollisionUsesLaterDirectoryEntry(t *testing.T) {
+	parked := t.TempDir()
+	upper := filepath.Join(parked, "App")
+	lower := filepath.Join(parked, "app")
+	for _, dir := range []string{upper, lower} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{Parked: []string{parked}}).Resolve()
+	if len(resolved) != 1 {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if got := resolved[0]; got.Name != "app" || got.Path != lower {
+		t.Fatalf("lowercase collision should use later sorted directory entry: %#v", got)
+	}
+}
+
 func TestResolveSkipsInvalidAndHiddenParkedDirs(t *testing.T) {
 	parked := t.TempDir()
 	for _, dir := range []string{"valid", ".hidden", "Bad_Name"} {
@@ -457,6 +543,66 @@ func TestResolveSkipsInvalidAndHiddenParkedDirs(t *testing.T) {
 	}
 	if resolved[0].Name != "valid" {
 		t.Fatalf("resolved site = %#v", resolved[0])
+	}
+}
+
+func TestResolveSkipsInvalidAndHiddenParkedDirsWithRootOverride(t *testing.T) {
+	parked := t.TempDir()
+	for _, dir := range []string{"valid", ".hidden", "Bad_Name"} {
+		if err := os.MkdirAll(filepath.Join(parked, dir, "public"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(parked, dir, "public", "index.html"), []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		Parked:      []string{parked},
+		ParkedRoots: map[string]string{parked: "public"},
+	}).Resolve()
+	if len(resolved) != 1 {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if got := resolved[0]; got.Name != "valid" || got.Docroot != filepath.Join(parked, "valid", "public") {
+		t.Fatalf("resolved site = %#v", got)
+	}
+}
+
+func TestValidateProxyTargetVariants(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  string
+		wantErr string
+	}{
+		{name: "ipv4", target: "127.0.0.1:5173"},
+		{name: "localhost", target: "localhost:3000"},
+		{name: "ipv6", target: "[::1]:5173"},
+		{name: "leading whitespace", target: " 127.0.0.1:5173", wantErr: "invalid proxy target"},
+		{name: "missing host", target: ":5173", wantErr: "host cannot be empty"},
+		{name: "missing port", target: "127.0.0.1:", wantErr: "port must be 1-65535"},
+		{name: "zero port", target: "127.0.0.1:0", wantErr: "port must be 1-65535"},
+		{name: "high port", target: "127.0.0.1:65536", wantErr: "port must be 1-65535"},
+		{name: "non-numeric port", target: "127.0.0.1:nope", wantErr: "port must be 1-65535"},
+		{name: "missing host port separator", target: "5173", wantErr: "expected host:port"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateProxyTarget(tt.target)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateProxyTarget(%q) error = %v", tt.target, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateProxyTarget(%q) expected error containing %q", tt.target, tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("ValidateProxyTarget(%q) error = %v, want %q", tt.target, err, tt.wantErr)
+			}
+		})
 	}
 }
 
@@ -772,6 +918,40 @@ func TestWriteFragmentsRendersAliasSiteAsSeparateHost(t *testing.T) {
 	}
 }
 
+func TestWriteFragmentsRendersAliasWithDistinctEnvSocket(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	project := t.TempDir()
+	docroot := filepath.Join(project, "public")
+	if err := os.MkdirAll(docroot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range []string{
+		filepath.Join(project, ".env"),
+		filepath.Join(docroot, "index.php"),
+	} {
+		if err := os.WriteFile(file, []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		DefaultPHP: "8.4",
+		Links:      []Link{{Name: "app", Path: project, Root: "public", Secure: true}},
+		Aliases:    []Alias{{Name: "api", Target: "app"}},
+	}).Resolve()
+	if err := WriteFragments(resolved); err != nil {
+		t.Fatal(err)
+	}
+
+	content := readFragment(t, "api")
+	want := "php_fastcgi " + strconv.Quote("unix/"+filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4-api.sock"))
+	if !strings.Contains(content, want) {
+		t.Fatalf("rendered alias fragment missing %q:\n%s", want, content)
+	}
+}
+
 func TestWriteFragmentsRejectsInvalidProxyTarget(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
@@ -813,6 +993,36 @@ func TestWriteFragmentsRemovesStaleFragments(t *testing.T) {
 	}
 }
 
+func TestWriteFragmentsRemovesStaleAliasFragments(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	project := t.TempDir()
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	withAlias := (&State{
+		Links:   []Link{{Name: "app", Path: project, Secure: true}},
+		Aliases: []Alias{{Name: "api", Target: "app"}},
+	}).Resolve()
+	if err := WriteFragments(withAlias); err != nil {
+		t.Fatal(err)
+	}
+	withoutAlias := (&State{
+		Links: []Link{{Name: "app", Path: project, Secure: true}},
+	}).Resolve()
+	if err := WriteFragments(withoutAlias); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(fragmentPath("api")); !os.IsNotExist(err) {
+		t.Fatalf("alias fragment should be removed, stat err = %v", err)
+	}
+	if _, err := os.Stat(fragmentPath("app")); err != nil {
+		t.Fatalf("concrete fragment should remain: %v", err)
+	}
+}
+
 func TestWriteFragmentsRejectsInvalidSiteNames(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
@@ -849,6 +1059,34 @@ func TestResolvePathReturnsLongestMatchingSitePath(t *testing.T) {
 	}
 	if matches[0].Name != "child" || matches[1].Name != "child-api" {
 		t.Fatalf("unexpected matches: %#v", matches)
+	}
+}
+
+func TestResolvePathReturnsConcreteAndAliasMatchesButSkipsProxies(t *testing.T) {
+	project := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(filepath.Join(project, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	state := &State{
+		Links: []Link{
+			{Name: "app", Path: project, Secure: true},
+			{Name: "vite", Target: "127.0.0.1:5173", Secure: true},
+		},
+		Aliases: []Alias{{Name: "api", Target: "app"}},
+	}
+
+	matches := state.ResolvePath(filepath.Join(project, "subdir"))
+	if len(matches) != 2 {
+		t.Fatalf("got %d matches, want concrete plus alias: %#v", len(matches), matches)
+	}
+	if matches[0].Name != "api" || matches[1].Name != "app" {
+		t.Fatalf("unexpected matches: %#v", matches)
+	}
+	for _, match := range matches {
+		if match.Kind == KindProxy {
+			t.Fatalf("proxy should not match a filesystem path: %#v", matches)
+		}
 	}
 }
 

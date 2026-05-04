@@ -20,6 +20,7 @@ daemon.
 - Per-site PHP isolation for browser requests
 - PHP and Composer CLI proxies that use the right project PHP
 - Static sites and reverse proxies for frontend dev servers
+- Optional Redis and Mailpit user services for local app dependencies
 - systemd user services for Caddy, DNS, and PHP-FPM
 
 ## Platform Support
@@ -88,6 +89,8 @@ routa php ext list 8.4
 routa track / untrack / ignore / unignore / link / unlink / alias / unalias / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
+routa redis start / stop / restart / status
+routa mail start / stop / restart / status / proxy
 routa version                   # print version, commit, build date
 ```
 
@@ -249,6 +252,37 @@ routa dev --name custom --port 3000 -- ./scripts/start-web
 Detected defaults include package manager `dev` scripts, Rails on :3000,
 Phoenix on :4000, and Django on :8000. Pass `--port` for commands that do not
 print or bind a predictable port.
+
+## Redis
+
+routa can manage a local Redis instance as a systemd user service:
+
+```bash
+routa redis start
+routa redis status
+routa redis stop
+```
+
+`routa redis start` expects `redis-server` to be installed by your system
+package manager. It writes `routa-redis.service`, stores Redis data under
+`~/.local/share/routa/services/redis/`, and binds Redis to localhost on
+`:6379`.
+
+## Mailpit
+
+routa can manage Mailpit as a systemd user service:
+
+```bash
+routa mail start
+routa mail proxy        # mail.test -> 127.0.0.1:8025
+routa mail status
+routa mail stop
+```
+
+`routa mail start` expects `mailpit` to be installed by your system package
+manager. It writes `routa-mailpit.service`, stores Mailpit's persistent
+database under `~/.local/share/routa/services/mailpit/`, binds the web UI to
+`127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025`.
 
 ## TUI
 

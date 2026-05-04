@@ -79,7 +79,7 @@ func TestRoutaUnitsForUninstallIncludesDiscoveredPHPUnits(t *testing.T) {
 	}
 
 	got := routaUnitsForUninstall()
-	want := []string{"routa-caddy.service", "routa-dns.service", "routa-php@8.3.service", "routa-php@8.4.service"}
+	want := []string{"routa-caddy.service", "routa-dns.service", "routa-redis.service", "routa-mailpit.service", "routa-php@8.3.service", "routa-php@8.4.service"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("routaUnitsForUninstall() = %#v, want %#v", got, want)
 	}

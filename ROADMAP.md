@@ -108,6 +108,8 @@ trying to become a full-stack desktop dev suite.
 
 - **More routing edge coverage** — keep adding unusual tracked-dir, linked-site,
   proxy, dev-server, and path-combination cases as they appear.
+- **Managed services first slices** — Redis and Mailpit user services landed as
+  the proving ground for the service abstraction before databases.
 
 ## Mid-term
 
@@ -116,9 +118,10 @@ trying to become a full-stack desktop dev suite.
 - **Bundled services**
   - **MariaDB / Postgres** — managed user systemd unit per version, ports
     3306/5432, data under `~/.local/share/routa/db/`.
-  - **Redis** — single user-space instance.
+  - **Redis** — single user-space instance. CLI slice is available as
+    `routa redis start/stop/restart/status`.
   - **Mailpit** — SMTP catcher on :1025, web UI on :8025, optionally proxied
-    as `mail.test`.
+    as `mail.test` with `routa mail proxy`.
   - CLI shape: `routa db install mariadb 11`, `routa db start/stop/list`,
     `routa mail start`. TUI panel for these.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the

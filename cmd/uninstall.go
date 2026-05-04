@@ -11,6 +11,7 @@ import (
 
 	"github.com/scottzirkel/routa/internal/ca"
 	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/services"
 	"github.com/scottzirkel/routa/internal/systemd"
 )
 
@@ -58,7 +59,7 @@ func runUninstall(_ *cobra.Command, _ []string) error {
 }
 
 func routaUnitsForUninstall() []string {
-	units := []string{"routa-caddy.service", "routa-dns.service"}
+	units := []string{"routa-caddy.service", "routa-dns.service", services.RedisUnitName, services.MailpitUnitName}
 	return append(units, phpUnitsForUninstall(paths.SystemdUserDir(), paths.RunDir())...)
 }
 

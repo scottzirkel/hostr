@@ -17,6 +17,7 @@ import (
 	"github.com/scottzirkel/routa/internal/cutover"
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/php"
+	"github.com/scottzirkel/routa/internal/services"
 	"github.com/scottzirkel/routa/internal/site"
 	"github.com/scottzirkel/routa/internal/systemd"
 	"github.com/scottzirkel/routa/internal/tui"
@@ -60,6 +61,7 @@ var restartCmd = &cobra.Command{
 		} else {
 			units = []string{"routa-dns.service", "routa-caddy.service"}
 			units = append(units, runningPHPUnits()...)
+			units = append(units, activeOptionalServiceUnits()...)
 		}
 		for _, u := range units {
 			if err := prepareRestartUnit(u); err != nil {
@@ -320,6 +322,7 @@ func collectDoctorReport(withProbes bool) (doctorReport, error) {
 
 	units := []string{"routa-dns.service", "routa-caddy.service"}
 	units = append(units, runningPHPUnits()...)
+	units = append(units, installedOptionalServiceUnits()...)
 	for _, u := range units {
 		report.Services = append(report.Services, doctorServiceStatus(u, systemctlUserIsActive))
 	}
@@ -480,6 +483,38 @@ func runningPHPUnits() []string {
 		out = append(out, "routa-php@"+spec+".service")
 	}
 	return out
+}
+
+func installedOptionalServiceUnits() []string {
+	var out []string
+	for _, unit := range []string{services.RedisUnitName, services.MailpitUnitName} {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
+	return out
+}
+
+func activeOptionalServiceUnits() []string {
+	var out []string
+	for _, unit := range installedOptionalServiceUnits() {
+		if systemd.IsActive(unit) {
+			out = append(out, unit)
+		}
+	}
+	return out
+}
+
+func routaUnitExists(unit string) bool {
+	for _, path := range []string{
+		filepath.Join(paths.SystemdUserDir(), unit),
+		filepath.Join(paths.SystemdUserDir(), "default.target.wants", unit),
+	} {
+		if _, err := os.Lstat(path); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func portBound(addr string) bool {
