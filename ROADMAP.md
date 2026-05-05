@@ -13,6 +13,8 @@ priority, not commitment.
   `routa-bin` lives under `packaging/aur/routa-bin/`.
 - **PHP debugging toggle** — `routa php xdebug on/off/status <version>` manages
   per-version Xdebug ini settings when the installed PHP build includes Xdebug.
+- **Optional service proxy helpers** — search services and MinIO console can be
+  registered as `.test` proxies with service-aware default ports.
 
 ## Released
 
@@ -156,8 +158,8 @@ trying to become a full-stack desktop dev suite.
   - Publish and maintain the AUR package (`routa-bin`) after the first binary
     release artifacts are attached.
 - **Optional service polish**
-  - Per-service proxy helpers where they make sense, such as search dashboards,
-    MinIO console, and named Mailpit inboxes.
+  - Per-service proxy helpers where they make sense, such as named Mailpit
+    inboxes.
   - Consistent lifecycle output and list/status formatting across Redis,
     Mailpit, databases, search, and storage.
   - Backup/export guidance for stateful service data.

@@ -391,10 +391,12 @@ routa can manage Meilisearch and Typesense as version-isolated search services:
 ```bash
 routa search install meilisearch 1.12
 routa search start meilisearch 1.12 on 7701
+routa search proxy meilisearch 1.12 search
 routa search status meilisearch 1.12
 
 routa search install typesense 28
 routa search start typesense 28 on 8109
+routa search proxy typesense 28 typesense
 routa search list
 ```
 
@@ -409,6 +411,7 @@ routa can manage MinIO as a version-isolated S3-compatible local service:
 ```bash
 routa storage install minio RELEASE.2026-05-01T00-00-00Z
 routa storage start minio RELEASE.2026-05-01T00-00-00Z on 9002 --console-port 9003
+routa storage proxy minio RELEASE.2026-05-01T00-00-00Z minio
 routa storage status minio RELEASE.2026-05-01T00-00-00Z
 routa storage list
 ```

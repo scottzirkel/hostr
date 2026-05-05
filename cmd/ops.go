@@ -480,7 +480,7 @@ func optionalServiceDoctorSpecForUnit(unit string) (optionalServiceDoctorSpec, [
 		addPort(label, port)
 	}
 	addUnitFlagPort := func(label, flag, fallback string) {
-		addPort(label, doctorUnitFlagPort(content, flag, fallback))
+		addPort(label, routaUnitFlagPort(content, flag, fallback))
 	}
 
 	switch {
@@ -688,7 +688,7 @@ func doctorConfigPort(path, fallback string) (string, error) {
 	return fallback, fmt.Errorf("port not found in %s", path)
 }
 
-func doctorUnitFlagPort(content, flag, fallback string) string {
+func routaUnitFlagPort(content, flag, fallback string) string {
 	for _, line := range strings.Split(content, "\n") {
 		line = strings.TrimSpace(line)
 		if !strings.HasPrefix(line, "ExecStart=") {

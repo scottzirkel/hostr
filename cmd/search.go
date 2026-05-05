@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/scottzirkel/routa/internal/services"
+	"github.com/scottzirkel/routa/internal/site"
 	"github.com/scottzirkel/routa/internal/systemd"
 )
 
@@ -85,6 +86,29 @@ var searchStatusCmd = &cobra.Command{
 	},
 }
 
+var searchProxyCmd = &cobra.Command{
+	Use:   "proxy <engine> <version> [name]",
+	Short: "Proxy a search dashboard/API as <name>.test",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 2 && len(args) != 3 {
+			return fmt.Errorf("usage: %s", cmd.UseLine())
+		}
+		return searchEngineVersionArgs(cmd, args[:2])
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		link, err := searchProxyLink(args)
+		if err != nil {
+			return err
+		}
+		s, err := site.Load()
+		if err != nil {
+			return err
+		}
+		site.AddLink(s, link)
+		return commitAndReload(s, fmt.Sprintf("proxy %s.test -> %s", link.Name, link.Target))
+	},
+}
+
 var searchListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List routa search services",
@@ -112,6 +136,23 @@ var searchListCmd = &cobra.Command{
 		}
 		return w.Flush()
 	},
+}
+
+func searchProxyLink(args []string) (site.Link, error) {
+	engine, version := args[0], args[1]
+	name := engine
+	if len(args) == 3 {
+		name = args[2]
+	}
+	normalized, err := normalizeSiteName(name)
+	if err != nil {
+		return site.Link{}, err
+	}
+	port, err := searchConfiguredPort(engine, version)
+	if err != nil {
+		return site.Link{}, err
+	}
+	return site.Link{Name: normalized, Target: localhostAddr(port), Secure: true}, nil
 }
 
 func searchEngineVersionArgs(_ *cobra.Command, args []string) error {
@@ -180,9 +221,29 @@ func searchUnitName(engine, version string) string {
 	}
 }
 
+func searchConfiguredPort(engine, version string) (string, error) {
+	fallback, err := searchPort(engine, "")
+	if err != nil {
+		return "", err
+	}
+	unit := searchUnitName(engine, version)
+	content, err := readRoutaUnit(unit)
+	if err != nil {
+		return fallback, nil
+	}
+	switch engine {
+	case "meilisearch":
+		return routaUnitFlagPort(content, "--http-addr", fallback), nil
+	case "typesense":
+		return routaUnitFlagPort(content, "--api-port", fallback), nil
+	default:
+		return "", fmt.Errorf("unsupported search engine %q (supported: meilisearch, typesense)", engine)
+	}
+}
+
 func init() {
 	searchInstallCmd.Flags().StringVar(&searchInstallPort, "port", "", "search service TCP port")
 	searchStartCmd.Flags().StringVar(&searchStartPort, "port", "", "search service TCP port")
-	searchCmd.AddCommand(searchInstallCmd, searchStartCmd, searchStopCmd, searchStatusCmd, searchListCmd)
+	searchCmd.AddCommand(searchInstallCmd, searchStartCmd, searchStopCmd, searchStatusCmd, searchProxyCmd, searchListCmd)
 	rootCmd.AddCommand(searchCmd)
 }

@@ -41,6 +41,21 @@ func TestSearchPortFromCommandAcceptsOnAlias(t *testing.T) {
 	}
 }
 
+func TestSearchProxyLinkUsesConfiguredPort(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MeilisearchUnitName("1.12"))
+	writeTestFile(t, unitPath, "[Service]\nExecStart=/usr/bin/meilisearch --http-addr 127.0.0.1:7701 --db-path /tmp/meili\n")
+
+	link, err := searchProxyLink([]string{"meilisearch", "1.12", "search.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.Name != "search" || link.Target != "127.0.0.1:7701" || !link.Secure {
+		t.Fatalf("link = %#v", link)
+	}
+}
+
 func TestSearchListShowsInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
@@ -106,6 +121,22 @@ func TestMinIOPortsFromCommandAcceptsOnAlias(t *testing.T) {
 	}
 }
 
+func TestMinIOProxyLinkUsesConfiguredConsolePort(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	version := "RELEASE.2026-05-01T00-00-00Z"
+	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MinIOUnitName(version))
+	writeTestFile(t, unitPath, "[Service]\nExecStart=/usr/bin/minio server --address 127.0.0.1:9002 --console-address 127.0.0.1:9003 /tmp/minio\n")
+
+	link, err := minIOProxyLink([]string{"minio", version, "storage.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.Name != "storage" || link.Target != "127.0.0.1:9003" || !link.Secure {
+		t.Fatalf("link = %#v", link)
+	}
+}
+
 func TestStorageListShowsMinIOInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
@@ -145,5 +176,15 @@ func TestStorageListShowsMinIOInstances(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Fatalf("storage list output missing %q:\n%s", want, body)
 		}
+	}
+}
+
+func writeTestFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

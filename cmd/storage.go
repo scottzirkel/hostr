@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/scottzirkel/routa/internal/services"
+	"github.com/scottzirkel/routa/internal/site"
 	"github.com/scottzirkel/routa/internal/systemd"
 )
 
@@ -89,6 +90,29 @@ var storageStatusCmd = &cobra.Command{
 	},
 }
 
+var storageProxyCmd = &cobra.Command{
+	Use:   "proxy minio <version> [name]",
+	Short: "Proxy the MinIO console as <name>.test",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 2 && len(args) != 3 {
+			return fmt.Errorf("usage: %s", cmd.UseLine())
+		}
+		return storageMinIOVersionArgs(cmd, args[:2])
+	},
+	RunE: func(_ *cobra.Command, args []string) error {
+		link, err := minIOProxyLink(args)
+		if err != nil {
+			return err
+		}
+		s, err := site.Load()
+		if err != nil {
+			return err
+		}
+		site.AddLink(s, link)
+		return commitAndReload(s, fmt.Sprintf("proxy %s.test -> %s", link.Name, link.Target))
+	},
+}
+
 var storageListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List routa object storage services",
@@ -109,6 +133,23 @@ var storageListCmd = &cobra.Command{
 		}
 		return w.Flush()
 	},
+}
+
+func minIOProxyLink(args []string) (site.Link, error) {
+	version := args[1]
+	name := "minio"
+	if len(args) == 3 {
+		name = args[2]
+	}
+	normalized, err := normalizeSiteName(name)
+	if err != nil {
+		return site.Link{}, err
+	}
+	_, consolePort, err := minIOConfiguredPorts(version)
+	if err != nil {
+		return site.Link{}, err
+	}
+	return site.Link{Name: normalized, Target: localhostAddr(consolePort), Secure: true}, nil
 }
 
 func storageMinIOVersionArgs(_ *cobra.Command, args []string) error {
@@ -156,11 +197,25 @@ func minIOPortsFromCommand(cmd *cobra.Command, args []string, flagPort, consoleP
 	return port, fallbackConsolePort, nil
 }
 
+func minIOConfiguredPorts(version string) (string, string, error) {
+	apiPort, consolePort, err := minIOPorts("", "")
+	if err != nil {
+		return "", "", err
+	}
+	content, err := readRoutaUnit(services.MinIOUnitName(version))
+	if err != nil {
+		return apiPort, consolePort, nil
+	}
+	apiPort = routaUnitFlagPort(content, "--address", apiPort)
+	consolePort = routaUnitFlagPort(content, "--console-address", consolePort)
+	return apiPort, consolePort, nil
+}
+
 func init() {
 	storageInstallCmd.Flags().StringVar(&storageInstallPort, "port", "", "MinIO API TCP port")
 	storageInstallCmd.Flags().StringVar(&storageInstallConsolePort, "console-port", "", "MinIO console TCP port")
 	storageStartCmd.Flags().StringVar(&storageStartPort, "port", "", "MinIO API TCP port")
 	storageStartCmd.Flags().StringVar(&storageStartConsolePort, "console-port", "", "MinIO console TCP port")
-	storageCmd.AddCommand(storageInstallCmd, storageStartCmd, storageStopCmd, storageStatusCmd, storageListCmd)
+	storageCmd.AddCommand(storageInstallCmd, storageStartCmd, storageStopCmd, storageStatusCmd, storageProxyCmd, storageListCmd)
 	rootCmd.AddCommand(storageCmd)
 }
