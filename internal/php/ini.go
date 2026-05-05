@@ -18,6 +18,29 @@ type INISetting struct {
 	Value string
 }
 
+const (
+	XdebugModeKey             = "xdebug.mode"
+	XdebugStartWithRequestKey = "xdebug.start_with_request"
+	XdebugClientHostKey       = "xdebug.client_host"
+	XdebugClientPortKey       = "xdebug.client_port"
+)
+
+type XdebugOptions struct {
+	Mode             string
+	StartWithRequest string
+	ClientHost       string
+	ClientPort       string
+}
+
+type XdebugStatus struct {
+	Available        bool
+	Enabled          bool
+	Mode             string
+	StartWithRequest string
+	ClientHost       string
+	ClientPort       string
+}
+
 func LaravelINISettings() []INISetting {
 	return []INISetting{
 		{Key: "memory_limit", Value: "512M"},
@@ -60,6 +83,80 @@ func EffectiveINISettings(spec string) ([]INISetting, error) {
 		settings = append(settings, setting)
 	}
 	return settings, nil
+}
+
+func DefaultXdebugOptions() XdebugOptions {
+	return XdebugOptions{
+		Mode:             "debug,develop",
+		StartWithRequest: "yes",
+		ClientHost:       "127.0.0.1",
+		ClientPort:       "9003",
+	}
+}
+
+func EnableXdebug(spec string, opts XdebugOptions) error {
+	if opts.Mode == "" {
+		opts.Mode = DefaultXdebugOptions().Mode
+	}
+	if opts.StartWithRequest == "" {
+		opts.StartWithRequest = DefaultXdebugOptions().StartWithRequest
+	}
+	if opts.ClientHost == "" {
+		opts.ClientHost = DefaultXdebugOptions().ClientHost
+	}
+	if opts.ClientPort == "" {
+		opts.ClientPort = DefaultXdebugOptions().ClientPort
+	}
+	for _, setting := range []INISetting{
+		{Key: XdebugModeKey, Value: opts.Mode},
+		{Key: XdebugStartWithRequestKey, Value: opts.StartWithRequest},
+		{Key: XdebugClientHostKey, Value: opts.ClientHost},
+		{Key: XdebugClientPortKey, Value: opts.ClientPort},
+	} {
+		if err := SetINISetting(spec, setting.Key, setting.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func DisableXdebug(spec string) error {
+	for _, setting := range []INISetting{
+		{Key: XdebugModeKey, Value: "off"},
+		{Key: XdebugStartWithRequestKey, Value: "default"},
+	} {
+		if err := SetINISetting(spec, setting.Key, setting.Value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func XdebugINIStatus(spec string, modules []string) (XdebugStatus, error) {
+	status := XdebugStatus{Available: moduleLoaded(modules, "xdebug")}
+	settings, err := EffectiveINISettings(spec)
+	if err != nil {
+		return status, err
+	}
+	values := map[string]string{}
+	for _, setting := range settings {
+		values[strings.ToLower(setting.Key)] = setting.Value
+	}
+	status.Mode = values[XdebugModeKey]
+	status.StartWithRequest = values[XdebugStartWithRequestKey]
+	status.ClientHost = values[XdebugClientHostKey]
+	status.ClientPort = values[XdebugClientPortKey]
+	status.Enabled = status.Available && status.Mode != "" && !strings.EqualFold(status.Mode, "off")
+	return status, nil
+}
+
+func moduleLoaded(modules []string, want string) bool {
+	for _, module := range modules {
+		if strings.EqualFold(module, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func WriteCLIConfig(spec string) (string, error) {

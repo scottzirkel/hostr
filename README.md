@@ -92,6 +92,7 @@ routa php ini set 8.4 memory_limit 512M
 routa php ini set 8.4 upload_max_filesize 128M
 routa php ini set 8.4 post_max_size 128M
 routa php ext list 8.4
+routa php xdebug on 8.4 / off 8.4 / status 8.4
 routa track / untrack / ignore / unignore / link / unlink / alias / unalias / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
@@ -189,6 +190,22 @@ installing shared modules at runtime:
 ```bash
 routa php ext list 8.4
 ```
+
+## Xdebug
+
+When an installed PHP build includes Xdebug, routa can toggle per-version
+debugging settings for both CLI proxy commands and PHP-FPM:
+
+```bash
+routa php xdebug on 8.4
+routa php xdebug status 8.4
+routa php xdebug off 8.4
+```
+
+`on` defaults to Xdebug 3 settings: `xdebug.mode=debug,develop`,
+`xdebug.start_with_request=yes`, `xdebug.client_host=127.0.0.1`, and
+`xdebug.client_port=9003`. Use `routa php ext list <version>` to confirm the
+installed build includes Xdebug.
 
 ## Custom docroot
 

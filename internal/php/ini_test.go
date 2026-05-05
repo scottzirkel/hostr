@@ -171,3 +171,50 @@ func TestEffectiveINISettingsUserOverridesLaravelDefaults(t *testing.T) {
 		t.Fatalf("missing Laravel opcache default: %#v", got)
 	}
 }
+
+func TestXdebugToggleSettings(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	if err := EnableXdebug("8.4", XdebugOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := XdebugINIStatus("8.4", []string{"Core", "Xdebug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || !status.Enabled {
+		t.Fatalf("status = %#v, want available and enabled", status)
+	}
+	if status.Mode != "debug,develop" || status.StartWithRequest != "yes" || status.ClientHost != "127.0.0.1" || status.ClientPort != "9003" {
+		t.Fatalf("status = %#v", status)
+	}
+
+	if err := DisableXdebug("8.4"); err != nil {
+		t.Fatal(err)
+	}
+	status, err = XdebugINIStatus("8.4", []string{"xdebug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Enabled {
+		t.Fatalf("status = %#v, want disabled", status)
+	}
+	if status.Mode != "off" || status.StartWithRequest != "default" {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
+func TestXdebugStatusUnavailableWhenModuleMissing(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	if err := EnableXdebug("8.4", XdebugOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := XdebugINIStatus("8.4", []string{"Core"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Available || status.Enabled {
+		t.Fatalf("status = %#v, want unavailable and disabled", status)
+	}
+}

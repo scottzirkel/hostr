@@ -85,6 +85,96 @@ var phpINICmd = &cobra.Command{
 	Short: "Manage per-version PHP ini settings",
 }
 
+var phpXdebugMode string
+var phpXdebugStartWithRequest string
+var phpXdebugClientHost string
+var phpXdebugClientPort string
+
+var phpXdebugCmd = &cobra.Command{
+	Use:   "xdebug",
+	Short: "Toggle Xdebug settings for an installed PHP build",
+}
+
+var phpXdebugOnCmd = &cobra.Command{
+	Use:   "on <version>",
+	Short: "Enable Xdebug for a PHP version",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		spec := args[0]
+		if err := requirePHP(spec); err != nil {
+			return err
+		}
+		if err := requirePHPModule(spec, "xdebug"); err != nil {
+			return err
+		}
+		opts := php.XdebugOptions{
+			Mode:             phpXdebugMode,
+			StartWithRequest: phpXdebugStartWithRequest,
+			ClientHost:       phpXdebugClientHost,
+			ClientPort:       phpXdebugClientPort,
+		}
+		if err := php.EnableXdebug(spec, opts); err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "enabled Xdebug for PHP %s\n", spec)
+		return applyPHPINIChange(cmd, spec)
+	},
+}
+
+var phpXdebugOffCmd = &cobra.Command{
+	Use:   "off <version>",
+	Short: "Disable Xdebug for a PHP version",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		spec := args[0]
+		if err := requirePHP(spec); err != nil {
+			return err
+		}
+		if err := php.DisableXdebug(spec); err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "disabled Xdebug for PHP %s\n", spec)
+		return applyPHPINIChange(cmd, spec)
+	},
+}
+
+var phpXdebugStatusCmd = &cobra.Command{
+	Use:   "status <version>",
+	Short: "Show Xdebug status for a PHP version",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		spec := args[0]
+		if err := requirePHP(spec); err != nil {
+			return err
+		}
+		modules, err := php.Modules(spec)
+		if err != nil {
+			return err
+		}
+		status, err := php.XdebugINIStatus(spec, modules)
+		if err != nil {
+			return err
+		}
+		switch {
+		case !status.Available:
+			fmt.Fprintf(cmd.OutOrStdout(), "Xdebug is not available in PHP %s\n", spec)
+		case status.Enabled:
+			fmt.Fprintf(cmd.OutOrStdout(), "Xdebug is enabled for PHP %s\n", spec)
+		default:
+			fmt.Fprintf(cmd.OutOrStdout(), "Xdebug is disabled for PHP %s\n", spec)
+		}
+		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
+		fmt.Fprintln(w, "KEY\tVALUE")
+		fmt.Fprintf(w, "available\t%t\n", status.Available)
+		fmt.Fprintf(w, "enabled\t%t\n", status.Enabled)
+		fmt.Fprintf(w, "%s\t%s\n", php.XdebugModeKey, valueOrDefault(status.Mode, "(unset)"))
+		fmt.Fprintf(w, "%s\t%s\n", php.XdebugStartWithRequestKey, valueOrDefault(status.StartWithRequest, "(unset)"))
+		fmt.Fprintf(w, "%s\t%s\n", php.XdebugClientHostKey, valueOrDefault(status.ClientHost, "(unset)"))
+		fmt.Fprintf(w, "%s\t%s\n", php.XdebugClientPortKey, valueOrDefault(status.ClientPort, "(unset)"))
+		return w.Flush()
+	},
+}
+
 var phpINIShowCmd = &cobra.Command{
 	Use:   "show <version>",
 	Short: "Show per-version PHP ini settings",
@@ -373,6 +463,26 @@ func requirePHP(version string) error {
 	return fmt.Errorf("PHP %s is not installed (%s). Run: routa php install %s", version, hint, version)
 }
 
+func requirePHPModule(spec, module string) error {
+	modules, err := php.Modules(spec)
+	if err != nil {
+		return err
+	}
+	for _, installed := range modules {
+		if strings.EqualFold(installed, module) {
+			return nil
+		}
+	}
+	return fmt.Errorf("PHP %s does not include %s. Run `routa php ext list %s` to inspect compiled extensions", spec, module, spec)
+}
+
+func valueOrDefault(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
 func applyPHPINIChange(cmd *cobra.Command, spec string) error {
 	if err := php.WriteFPMConfig(spec); err != nil {
 		return err
@@ -577,10 +687,17 @@ var phpRmCmd = &cobra.Command{
 
 func init() {
 	phpExtCmd.AddCommand(phpExtListCmd)
+	phpXdebugCmd.AddCommand(phpXdebugOnCmd, phpXdebugOffCmd, phpXdebugStatusCmd)
+	defaultXdebug := php.DefaultXdebugOptions()
+	phpXdebugOnCmd.Flags().StringVar(&phpXdebugMode, "mode", defaultXdebug.Mode, "Xdebug mode value")
+	phpXdebugOnCmd.Flags().StringVar(&phpXdebugStartWithRequest, "start-with-request", defaultXdebug.StartWithRequest, "Xdebug start_with_request value")
+	phpXdebugOnCmd.Flags().StringVar(&phpXdebugClientHost, "client-host", defaultXdebug.ClientHost, "Xdebug client host")
+	phpXdebugOnCmd.Flags().StringVar(&phpXdebugClientPort, "client-port", defaultXdebug.ClientPort, "Xdebug client port")
 	phpINICmd.AddCommand(phpINIShowCmd, phpINIPathCmd, phpINISetCmd, phpINIUnsetCmd, phpINIEditCmd)
 	phpINISetCmd.Flags().SetInterspersed(false)
 	phpCmd.AddCommand(phpInstallCmd, phpListCmd, phpUseCmd, phpRmCmd)
 	phpCmd.AddCommand(phpExtCmd)
 	phpCmd.AddCommand(phpINICmd)
+	phpCmd.AddCommand(phpXdebugCmd)
 	rootCmd.AddCommand(phpCmd, composerCmd, whichPHPCmd)
 }

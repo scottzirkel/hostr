@@ -11,6 +11,8 @@ priority, not commitment.
 - **Arch packaging path** — release builds can produce Linux `amd64`/`arm64`
   archives, GitHub releases can attach those artifacts, and AUR metadata for
   `routa-bin` lives under `packaging/aur/routa-bin/`.
+- **PHP debugging toggle** — `routa php xdebug on/off/status <version>` manages
+  per-version Xdebug ini settings when the installed PHP build includes Xdebug.
 
 ## Released
 
@@ -162,8 +164,9 @@ trying to become a full-stack desktop dev suite.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the
   compiled-in upstream bulk profile. Add finer-grained variant selection or
   custom static-php-cli builds for users who need a different extension set.
-- **Xdebug toggle** — install xdebug-enabled PHP variant alongside,
-  `routa php xdebug on/off <ver>` flips the loaded ini.
+- **Xdebug variants** — install xdebug-enabled PHP variants alongside the
+  default bulk profile for users whose installed PHP build does not include
+  Xdebug.
 
 ## Next logical steps
 

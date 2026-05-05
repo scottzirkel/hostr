@@ -94,3 +94,5 @@ The initial release line was reconstructed from the first commits:
   runtimes.
 - Add Linux release artifact builds for `amd64` and `arm64`.
 - Add AUR `routa-bin` package metadata and publishing notes.
+- Add `routa php xdebug on/off/status <version>` for per-version Xdebug ini
+  toggles when the installed PHP build includes Xdebug.
