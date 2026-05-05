@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -264,6 +266,7 @@ type doctorService struct {
 	Name   string `json:"name"`
 	OK     bool   `json:"ok"`
 	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
 }
 
 type doctorEndpoint struct {
@@ -322,9 +325,18 @@ func collectDoctorReport(withProbes bool) (doctorReport, error) {
 
 	units := []string{"routa-dns.service", "routa-caddy.service"}
 	units = append(units, runningPHPUnits()...)
-	units = append(units, installedOptionalServiceUnits()...)
+	optionalUnits := installedOptionalServiceUnits()
+	units = append(units, optionalUnits...)
+	optional := map[string]bool{}
+	for _, unit := range optionalUnits {
+		optional[unit] = true
+	}
 	for _, u := range units {
-		report.Services = append(report.Services, doctorServiceStatus(u, systemctlUserIsActive))
+		service := doctorServiceStatus(u, systemctlUserIsActive)
+		if optional[u] {
+			service.Detail = optionalServiceDoctorDetail(u, service.OK, service.Status)
+		}
+		report.Services = append(report.Services, service)
 	}
 
 	caddyActive := serviceActive(report.Services, "routa-caddy.service")
@@ -401,6 +413,311 @@ func doctorServiceStatus(unit string, isActive func(string) ([]byte, error)) doc
 	}
 }
 
+type optionalServiceDoctorSpec struct {
+	Kind    string
+	Version string
+	Binary  string
+	Ports   []optionalServiceDoctorPort
+}
+
+type optionalServiceDoctorPort struct {
+	Label string
+	Port  string
+}
+
+var (
+	doctorSharedLibraryRE = regexp.MustCompile(`error while loading shared libraries: ([^:]+):`)
+	doctorVersionRE       = regexp.MustCompile(`[0-9]+(?:\.[0-9]+)*`)
+)
+
+func optionalServiceDoctorDetail(unit string, active bool, status string) string {
+	spec, details := optionalServiceDoctorSpecForUnit(unit)
+	if strings.TrimSpace(status) == "failed" {
+		details = append(details, "inspect logs with `journalctl --user -u "+unit+" -n 100 --no-pager`")
+	}
+	if spec.Binary != "" {
+		if detail := optionalServiceBinaryDetail(spec); detail != "" {
+			details = append(details, detail)
+		}
+	}
+	if !active {
+		for _, port := range spec.Ports {
+			if port.Port == "" {
+				continue
+			}
+			addr := "127.0.0.1:" + port.Port
+			if portBound(addr) {
+				details = append(details, port.Label+" port "+addr+" is already bound while "+unit+" is not active")
+			}
+		}
+	}
+	return strings.Join(details, "; ")
+}
+
+func optionalServiceDoctorSpecForUnit(unit string) (optionalServiceDoctorSpec, []string) {
+	content, err := readRoutaUnit(unit)
+	details := []string{}
+	if err != nil {
+		details = append(details, "could not read unit file: "+err.Error())
+	}
+	spec := optionalServiceDoctorSpec{
+		Kind:   optionalServiceKind(unit),
+		Binary: execStartBinary(content),
+	}
+
+	addPort := func(label, port string) {
+		if err := services.ValidateTCPPort(label, port); err != nil {
+			details = append(details, err.Error())
+			return
+		}
+		spec.Ports = append(spec.Ports, optionalServiceDoctorPort{Label: label, Port: port})
+	}
+	addConfigPort := func(label, path, fallback string) {
+		port, err := doctorConfigPort(path, fallback)
+		if err != nil {
+			details = append(details, "could not read "+label+" config port: "+err.Error())
+		}
+		addPort(label, port)
+	}
+	addUnitFlagPort := func(label, flag, fallback string) {
+		addPort(label, doctorUnitFlagPort(content, flag, fallback))
+	}
+
+	switch {
+	case unit == services.RedisUnitName:
+		port, err := services.RedisConfiguredPort()
+		if err != nil {
+			details = append(details, "could not read Redis config port: "+err.Error())
+			port = services.RedisDefaultPort
+		}
+		addPort("Redis", port)
+	case unit == services.MailpitUnitName:
+		addUnitFlagPort("Mailpit web", "--listen", services.MailpitWebPort)
+		addUnitFlagPort("Mailpit SMTP", "--smtp", services.MailpitSMTPPort)
+	case strings.HasPrefix(unit, "routa-mariadb@"):
+		version, instance := doctorDatabaseVersionInstance(unit, "routa-mariadb@")
+		spec.Version = version
+		addConfigPort("MariaDB", services.MariaDBConfigPathForInstance(version, instance), services.MariaDBDefaultPort)
+	case strings.HasPrefix(unit, "routa-mysql@"):
+		version, instance := doctorDatabaseVersionInstance(unit, "routa-mysql@")
+		spec.Version = version
+		addConfigPort("MySQL", services.MySQLConfigPathForInstance(version, instance), services.MySQLDefaultPort)
+	case strings.HasPrefix(unit, "routa-postgres@"):
+		version, instance := doctorDatabaseVersionInstance(unit, "routa-postgres@")
+		spec.Version = version
+		addConfigPort("Postgres", services.PostgresConfigPathForInstance(version, instance), services.PostgresDefaultPort)
+	case strings.HasPrefix(unit, "routa-meilisearch@"):
+		spec.Version = strings.TrimSuffix(strings.TrimPrefix(unit, "routa-meilisearch@"), ".service")
+		addUnitFlagPort("Meilisearch", "--http-addr", services.MeilisearchDefaultPort)
+	case strings.HasPrefix(unit, "routa-typesense@"):
+		spec.Version = strings.TrimSuffix(strings.TrimPrefix(unit, "routa-typesense@"), ".service")
+		addUnitFlagPort("Typesense", "--api-port", services.TypesenseDefaultPort)
+	case strings.HasPrefix(unit, "routa-minio@"):
+		spec.Version = strings.TrimSuffix(strings.TrimPrefix(unit, "routa-minio@"), ".service")
+		addUnitFlagPort("MinIO", "--address", services.MinIODefaultPort)
+		addUnitFlagPort("MinIO console", "--console-address", services.MinIODefaultConsolePort)
+	}
+
+	return spec, details
+}
+
+func optionalServiceKind(unit string) string {
+	switch {
+	case unit == services.RedisUnitName:
+		return "redis"
+	case unit == services.MailpitUnitName:
+		return "mailpit"
+	case strings.HasPrefix(unit, "routa-mariadb@"):
+		return "mariadb"
+	case strings.HasPrefix(unit, "routa-mysql@"):
+		return "mysql"
+	case strings.HasPrefix(unit, "routa-postgres@"):
+		return "postgres"
+	case strings.HasPrefix(unit, "routa-meilisearch@"):
+		return "meilisearch"
+	case strings.HasPrefix(unit, "routa-typesense@"):
+		return "typesense"
+	case strings.HasPrefix(unit, "routa-minio@"):
+		return "minio"
+	}
+	return ""
+}
+
+func readRoutaUnit(unit string) (string, error) {
+	for _, path := range []string{
+		filepath.Join(paths.SystemdUserDir(), unit),
+		filepath.Join(paths.SystemdUserDir(), "default.target.wants", unit),
+	} {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return string(data), nil
+		}
+		if !os.IsNotExist(err) {
+			return "", err
+		}
+	}
+	return "", os.ErrNotExist
+}
+
+func execStartBinary(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "ExecStart=") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "ExecStart="))
+		if len(fields) == 0 {
+			return ""
+		}
+		binary := strings.Trim(fields[0], `"'`)
+		return strings.TrimLeft(binary, "-+!@")
+	}
+	return ""
+}
+
+func optionalServiceBinaryDetail(spec optionalServiceDoctorSpec) string {
+	binary := spec.Binary
+	if !filepath.IsAbs(binary) {
+		resolved, err := exec.LookPath(binary)
+		if err != nil {
+			return "missing binary " + binary
+		}
+		binary = resolved
+	} else if info, err := os.Stat(binary); err != nil {
+		if os.IsNotExist(err) {
+			return "missing binary " + binary
+		}
+		return "could not stat binary " + binary + ": " + err.Error()
+	} else if info.IsDir() {
+		return "binary path is a directory: " + binary
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, binary, "--version").CombinedOutput()
+	output := strings.TrimSpace(string(out))
+	if ctx.Err() == context.DeadlineExceeded {
+		return binary + " --version timed out"
+	}
+	if err != nil {
+		if lib := missingRuntimeLibrary(output); lib != "" {
+			return binary + " is missing runtime library " + lib
+		}
+		return ""
+	}
+	if detail := databaseRuntimeMismatchDetail(spec, binary, output); detail != "" {
+		return detail
+	}
+	return ""
+}
+
+func missingRuntimeLibrary(output string) string {
+	match := doctorSharedLibraryRE.FindStringSubmatch(output)
+	if match == nil {
+		return ""
+	}
+	return match[1]
+}
+
+func databaseRuntimeMismatchDetail(spec optionalServiceDoctorSpec, binary, output string) string {
+	lower := strings.ToLower(output)
+	switch spec.Kind {
+	case "mysql":
+		if strings.Contains(lower, "mariadb") {
+			return "MySQL unit points at MariaDB binary " + binary
+		}
+	case "mariadb":
+		if !strings.Contains(lower, "mariadb") {
+			return "MariaDB unit points at non-MariaDB binary " + binary
+		}
+	case "postgres":
+		// Version-only check below.
+	default:
+		return ""
+	}
+	if spec.Version != "" && !doctorOutputHasVersion(output, spec.Version) {
+		versions := doctorVersionRE.FindAllString(output, -1)
+		if len(versions) == 0 {
+			return spec.Kind + " binary version does not match requested " + spec.Version
+		}
+		return spec.Kind + " binary version " + versions[0] + " does not match requested " + spec.Version
+	}
+	return ""
+}
+
+func doctorOutputHasVersion(output, requested string) bool {
+	if !doctorVersionRE.MatchString(requested) {
+		return strings.Contains(output, requested)
+	}
+	for _, version := range doctorVersionRE.FindAllString(output, -1) {
+		if version == requested || strings.HasPrefix(version, requested+".") {
+			return true
+		}
+	}
+	return false
+}
+
+func doctorDatabaseVersionInstance(unit, prefix string) (string, string) {
+	token := strings.TrimSuffix(strings.TrimPrefix(unit, prefix), ".service")
+	version, instance, _ := strings.Cut(token, "_")
+	return version, instance
+}
+
+func doctorConfigPort(path, fallback string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fallback, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			fields := strings.Fields(line)
+			if len(fields) == 2 && fields[0] == "port" {
+				return strings.Trim(fields[1], `"'`), nil
+			}
+			continue
+		}
+		if strings.TrimSpace(key) == "port" {
+			return strings.Trim(strings.TrimSpace(value), `"'`), nil
+		}
+	}
+	return fallback, fmt.Errorf("port not found in %s", path)
+}
+
+func doctorUnitFlagPort(content, flag, fallback string) string {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "ExecStart=") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "ExecStart="))
+		for i := 0; i < len(fields)-1; i++ {
+			if fields[i] == flag {
+				return portFromAddr(fields[i+1], fallback)
+			}
+		}
+	}
+	return fallback
+}
+
+func portFromAddr(addr, fallback string) string {
+	addr = strings.Trim(addr, `"'`)
+	if addr == "" {
+		return fallback
+	}
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		return port
+	}
+	if i := strings.LastIndex(addr, ":"); i >= 0 && i < len(addr)-1 {
+		return addr[i+1:]
+	}
+	return addr
+}
+
 func serviceActive(services []doctorService, name string) bool {
 	for _, service := range services {
 		if service.Name == name {
@@ -420,6 +737,9 @@ func renderDoctorText(cmd *cobra.Command, report doctorReport) error {
 	fmt.Fprintln(out, "Services")
 	for _, service := range report.Services {
 		fmt.Fprintf(out, "  %s  %-30s %s\n", mark(service.OK), service.Name, service.Status)
+		if service.Detail != "" {
+			fmt.Fprintf(out, "     %s\n", service.Detail)
+		}
 	}
 
 	fmt.Fprintln(out, "\nNetwork")

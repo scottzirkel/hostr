@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/scottzirkel/routa/internal/paths"
+	"github.com/scottzirkel/routa/internal/services"
 	"github.com/scottzirkel/routa/internal/site"
 )
 
@@ -105,6 +108,54 @@ func TestDoctorServiceStatusFallsBackToError(t *testing.T) {
 	}
 }
 
+func TestOptionalServiceDoctorDetailReportsMissingBinaryAndPortConflict(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	writeFile(t, services.RedisConfigPath(), "port "+port+"\n")
+	writeFile(t, filepath.Join(paths.SystemdUserDir(), services.RedisUnitName), "[Service]\nExecStart=/tmp/routa-missing-redis "+services.RedisConfigPath()+"\n")
+
+	got := optionalServiceDoctorDetail(services.RedisUnitName, false, "inactive")
+
+	for _, want := range []string{
+		"missing binary /tmp/routa-missing-redis",
+		"Redis port 127.0.0.1:" + port + " is already bound",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("detail missing %q: %s", want, got)
+		}
+	}
+}
+
+func TestOptionalServiceDoctorDetailReportsMySQLMariaDBMismatch(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	bin := filepath.Join(t.TempDir(), "mysqld")
+	writeFile(t, bin, "#!/bin/sh\necho 'mysqld  Ver 10.11.6-MariaDB for Linux on x86_64'\n")
+	if err := os.Chmod(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, services.MySQLConfigPath("8.0"), "port=3309\n")
+	writeFile(t, filepath.Join(paths.SystemdUserDir(), services.MySQLUnitName("8.0")), "[Service]\nExecStart="+bin+" --defaults-file="+services.MySQLConfigPath("8.0")+"\n")
+
+	got := optionalServiceDoctorDetail(services.MySQLUnitName("8.0"), true, "active")
+
+	if !strings.Contains(got, "MySQL unit points at MariaDB binary "+bin) {
+		t.Fatalf("detail = %q", got)
+	}
+}
+
 func TestCaddyAddrLabelReportsLikelyPortOwnerConflict(t *testing.T) {
 	got := caddyAddrLabel(true, false, false)
 
@@ -168,6 +219,16 @@ func TestNormalizeProxyTarget(t *testing.T) {
 				t.Fatalf("target = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
