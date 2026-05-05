@@ -12,7 +12,8 @@ priority, not commitment.
   archives, GitHub releases can attach those artifacts, and AUR metadata for
   `routa-bin` lives under `packaging/aur/routa-bin/`.
 - **PHP debugging toggle** — `routa php xdebug on/off/status <version>` manages
-  per-version Xdebug ini settings when the installed PHP build includes Xdebug.
+  per-version Xdebug ini settings when the installed PHP build includes Xdebug,
+  and Xdebug-capable installs default to off.
 - **Optional service proxy helpers** — search services and MinIO console can be
   registered as `.test` proxies with service-aware default ports.
 

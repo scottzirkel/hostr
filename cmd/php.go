@@ -315,6 +315,11 @@ var phpInstallCmd = &cobra.Command{
 
 		// Write fpm config for both forms so either unit instance works.
 		for _, s := range []string{rel.Version.String(), rel.Version.MinorString()} {
+			if enabled, err := php.EnsureXdebugDisabledIfAvailable(s); err != nil {
+				return err
+			} else if enabled {
+				fmt.Printf("→ Xdebug available for %s; defaulted to off\n", s)
+			}
 			if err := php.WriteFPMConfig(s); err != nil {
 				return err
 			}

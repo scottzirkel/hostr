@@ -132,6 +132,17 @@ func DisableXdebug(spec string) error {
 	return nil
 }
 
+func EnsureXdebugDisabledIfAvailable(spec string) (bool, error) {
+	modules, err := Modules(spec)
+	if err != nil {
+		return false, err
+	}
+	if !moduleLoaded(modules, "xdebug") {
+		return false, nil
+	}
+	return true, DisableXdebug(spec)
+}
+
 func XdebugINIStatus(spec string, modules []string) (XdebugStatus, error) {
 	status := XdebugStatus{Available: moduleLoaded(modules, "xdebug")}
 	settings, err := EffectiveINISettings(spec)

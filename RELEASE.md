@@ -96,4 +96,6 @@ The initial release line was reconstructed from the first commits:
 - Add AUR `routa-bin` package metadata and publishing notes.
 - Add `routa php xdebug on/off/status <version>` for per-version Xdebug ini
   toggles when the installed PHP build includes Xdebug.
+- Default Xdebug-capable PHP installs to `xdebug.mode=off` immediately after
+  installation.
 - Add proxy helpers for Meilisearch, Typesense, and the MinIO console.

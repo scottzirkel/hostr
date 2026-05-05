@@ -218,3 +218,61 @@ func TestXdebugStatusUnavailableWhenModuleMissing(t *testing.T) {
 		t.Fatalf("status = %#v, want unavailable and disabled", status)
 	}
 }
+
+func TestEnsureXdebugDisabledIfAvailableSkipsMissingModule(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	dir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php", "8.4", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	phpBin := filepath.Join(dir, "php")
+	if err := os.WriteFile(phpBin, []byte("#!/bin/sh\nprintf 'Core\\njson\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := EnsureXdebugDisabledIfAvailable("8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected missing Xdebug module to be skipped")
+	}
+	settings, err := LoadINISettings("8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(settings) != 0 {
+		t.Fatalf("settings = %#v, want none", settings)
+	}
+}
+
+func TestEnsureXdebugDisabledIfAvailableWritesOffDefaults(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	dir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php", "8.4", "bin")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	phpBin := filepath.Join(dir, "php")
+	if err := os.WriteFile(phpBin, []byte("#!/bin/sh\nprintf 'Core\\nXdebug\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := EnsureXdebugDisabledIfAvailable("8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected Xdebug module to be detected")
+	}
+	status, err := XdebugINIStatus("8.4", []string{"xdebug"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || status.Enabled || status.Mode != "off" || status.StartWithRequest != "default" {
+		t.Fatalf("status = %#v", status)
+	}
+}

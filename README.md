@@ -193,8 +193,9 @@ routa php ext list 8.4
 
 ## Xdebug
 
-When an installed PHP build includes Xdebug, routa can toggle per-version
-debugging settings for both CLI proxy commands and PHP-FPM:
+When an installed PHP build includes Xdebug, routa defaults it to off during
+install and can toggle per-version debugging settings later for both CLI proxy
+commands and PHP-FPM:
 
 ```bash
 routa php xdebug on 8.4
@@ -205,7 +206,8 @@ routa php xdebug off 8.4
 `on` defaults to Xdebug 3 settings: `xdebug.mode=debug,develop`,
 `xdebug.start_with_request=yes`, `xdebug.client_host=127.0.0.1`, and
 `xdebug.client_port=9003`. Use `routa php ext list <version>` to confirm the
-installed build includes Xdebug.
+installed build includes Xdebug. The current upstream bulk profile usually does
+not include Xdebug; routa will skip Xdebug ini defaults for those builds.
 
 ## Custom docroot
 
