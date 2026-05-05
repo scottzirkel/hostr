@@ -3,6 +3,15 @@
 Tracking release status and future work. Order within sections is rough
 priority, not commitment.
 
+## Pending release
+
+- **Optional service diagnostics** — `routa doctor` adds detail for optional
+  services with missing binaries, occupied ports, failed units, runtime library
+  failures, and mismatched database runtimes.
+- **Arch packaging path** — release builds can produce Linux `amd64`/`arm64`
+  archives, GitHub releases can attach those artifacts, and AUR metadata for
+  `routa-bin` lives under `packaging/aur/routa-bin/`.
+
 ## Released
 
 ### v1.7.0 — optional service dashboard actions
@@ -138,13 +147,12 @@ trying to become a full-stack desktop dev suite.
 
 - **More routing edge coverage** — keep adding unusual tracked-dir, linked-site,
   proxy, dev-server, and path-combination cases as they appear.
-- **Service diagnostics** — extend `routa doctor` coverage for optional service
-  binaries, port conflicts, inactive units, and common missing-runtime cases.
 
 ## Mid-term
 
 - **Distribution**
-  - AUR package (`routa-bin`) so Arch users `paru -S routa-bin`.
+  - Publish and maintain the AUR package (`routa-bin`) after the first binary
+    release artifacts are attached.
 - **Optional service polish**
   - Per-service proxy helpers where they make sense, such as search dashboards,
     MinIO console, and named Mailpit inboxes.
@@ -159,14 +167,10 @@ trying to become a full-stack desktop dev suite.
 
 ## Next logical steps
 
-1. **Extend `doctor` for optional services** — diagnose missing binaries,
-   occupied ports, failed units, and mismatched database runtimes before users
-   have to inspect systemd logs by hand.
-2. **Package for Arch** — now that the optional service releases have landed,
-   `routa-bin` becomes
-   the practical distribution step for the current target audience.
-3. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
+1. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
    and extension variants as a focused PHP developer-experience milestone.
+2. **Optional service polish** — keep smoothing lifecycle output and proxy
+   helpers for search dashboards, MinIO console, and named Mailpit inboxes.
 
 ## Backlog / ideas
 

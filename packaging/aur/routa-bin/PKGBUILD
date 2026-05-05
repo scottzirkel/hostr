@@ -1,0 +1,30 @@
+# Maintainer: routa maintainers
+pkgname=routa-bin
+pkgver=1.7.0
+pkgrel=1
+pkgdesc='Linux local-development server for PHP, static, and proxied dev-server projects under .test domains'
+arch=('x86_64' 'aarch64')
+url='https://github.com/scottzirkel/routa'
+license=('custom')
+depends=('caddy' 'p11-kit' 'systemd')
+optdepends=(
+  'redis: Redis optional service'
+  'mailpit: Mailpit optional service'
+  'mariadb: MariaDB optional database service'
+  'postgresql: Postgres optional database service'
+  'meilisearch: Meilisearch optional search service'
+  'typesense: Typesense optional search service'
+  'minio: MinIO optional storage service'
+)
+provides=('routa')
+conflicts=('routa' 'routa-git')
+source_x86_64=("routa-${pkgver}-linux-amd64.tar.gz::${url}/releases/download/v${pkgver}/routa_${pkgver}_linux_amd64.tar.gz")
+source_aarch64=("routa-${pkgver}-linux-arm64.tar.gz::${url}/releases/download/v${pkgver}/routa_${pkgver}_linux_arm64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+  install -Dm755 "${srcdir}/routa" "${pkgdir}/usr/bin/routa"
+  install -Dm644 "${srcdir}/README.md" "${pkgdir}/usr/share/doc/routa/README.md"
+  install -Dm644 "${srcdir}/RELEASE.md" "${pkgdir}/usr/share/doc/routa/RELEASE.md"
+}

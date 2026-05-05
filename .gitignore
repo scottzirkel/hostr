@@ -1,5 +1,6 @@
 /hostr
 /routa
+/dist
 /hostr-cutover.sh
 /routa-cutover.sh
 *.test.local

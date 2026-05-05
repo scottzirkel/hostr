@@ -47,10 +47,14 @@ Before `v1.0.0`, minor releases may still include breaking changes, but prefer c
    git push origin main --tags
    ```
 
-7. Create the GitHub release from the pushed tag. Current policy: releases are
-   source/tag-only unless a release note explicitly says binaries are attached.
+7. Create the GitHub release from the pushed tag. The release-artifacts workflow
+   attaches Linux `amd64` and `arm64` archives plus a checksum file.
 
-8. Verify locally:
+8. For AUR releases, update `packaging/aur/routa-bin/PKGBUILD` with the new
+   `pkgver` and release checksums, regenerate `.SRCINFO`, then publish those
+   files to the AUR package repository.
+
+9. Verify locally:
 
    ```bash
    git status -sb
@@ -83,10 +87,10 @@ The initial release line was reconstructed from the first commits:
 
 ## Pending Release Notes
 
-### v1.7.0 — optional service dashboard actions
+### Next — diagnostics and packaging
 
-- Show installed optional services, ports, data directories, and active/inactive
-  state in the TUI inspector.
-- Add TUI optional-service selection plus confirmed start/stop and restart
-  actions.
-- Update dashboard docs and `routa restart` help for optional service behavior.
+- Extend `routa doctor` optional-service diagnostics for missing binaries,
+  occupied ports, failed units, runtime libraries, and mismatched database
+  runtimes.
+- Add Linux release artifact builds for `amd64` and `arm64`.
+- Add AUR `routa-bin` package metadata and publishing notes.

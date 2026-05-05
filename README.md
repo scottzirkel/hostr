@@ -30,11 +30,17 @@ It serves local sites under `.test`, binds Caddy to localhost, and manages PHP
 through static builds under `~/.local/share/routa/php/`.
 
 Intentionally out of scope: a GUI app, automatic in-place binary updates, macOS
-support, non-systemd init systems, and arbitrary local TLDs. GitHub releases are
-currently source/tag releases only; build locally with `git pull && bash
-install.sh` until a binary artifact policy is chosen.
+support, non-systemd init systems, and arbitrary local TLDs. Tagged GitHub
+releases include Linux binary archives for package managers, and cloned
+checkouts can still build locally with `git pull && bash install.sh`.
 
 ## Install
+
+On Arch-based systems, install the binary package after it is published to AUR:
+
+```bash
+paru -S routa-bin
+```
 
 Install from a cloned checkout:
 
