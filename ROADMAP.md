@@ -3,16 +3,14 @@
 Tracking release status and future work. Order within sections is rough
 priority, not commitment.
 
-## Landed on main, pending release
+## Released
 
-### Optional service dashboard actions
+### v1.7.0 — optional service dashboard actions
 
 - **TUI service visibility** — the dashboard inspector shows installed optional
   services with configured ports, data directories, and active/inactive state.
 - **TUI service actions** — optional services can be selected in the dashboard
   and started/stopped or restarted after confirmation.
-
-## Released
 
 ### v1.6.0 — managed MySQL services and DB instances
 
@@ -140,9 +138,6 @@ trying to become a full-stack desktop dev suite.
 
 - **More routing edge coverage** — keep adding unusual tracked-dir, linked-site,
   proxy, dev-server, and path-combination cases as they appear.
-- **Optional service release pass** — cut the next release around the landed
-  TUI service visibility/actions once docs and command help are checked against
-  the implemented behavior.
 - **Service diagnostics** — extend `routa doctor` coverage for optional service
   binaries, port conflicts, inactive units, and common missing-runtime cases.
 
@@ -164,15 +159,13 @@ trying to become a full-stack desktop dev suite.
 
 ## Next logical steps
 
-1. **Cut the optional-service dashboard release** — this is the lowest-risk
-   milestone because the implementation and README are already in place.
-   Remaining work: commit and tag the release.
-2. **Extend `doctor` for optional services** — diagnose missing binaries,
+1. **Extend `doctor` for optional services** — diagnose missing binaries,
    occupied ports, failed units, and mismatched database runtimes before users
    have to inspect systemd logs by hand.
-3. **Package for Arch** — once the service release lands, `routa-bin` becomes
+2. **Package for Arch** — now that the optional service releases have landed,
+   `routa-bin` becomes
    the practical distribution step for the current target audience.
-4. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
+3. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
    and extension variants as a focused PHP developer-experience milestone.
 
 ## Backlog / ideas
