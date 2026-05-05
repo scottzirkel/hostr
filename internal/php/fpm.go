@@ -47,8 +47,8 @@ clear_env = no
 catch_workers_output = yes
 decorate_workers_output = no
 {{range $.INISettings}}php_admin_value[{{.Key}}] = {{.Value}}
-{{end}}{{range .Env}}env[{{.Key}}] = {{.Value}}
-{{end}}
+{{end}}{{range .Env}}{{if .Value}}env[{{.Key}}] = {{fpmQuote .Value}}
+{{end}}{{end}}
 {{end}}
 `
 
@@ -109,7 +109,7 @@ func WriteFPMConfig(spec string) error {
 	if err != nil {
 		return err
 	}
-	t := template.Must(template.New("fpm").Parse(fpmConfTmpl))
+	t := template.Must(template.New("fpm").Funcs(template.FuncMap{"fpmQuote": fpmQuote}).Parse(fpmConfTmpl))
 	dest := filepath.Join(paths.RunDir(), fmt.Sprintf("php-fpm-%s.conf", spec))
 	f, err := os.Create(dest)
 	if err != nil {
@@ -222,6 +222,11 @@ func parseEnvValue(value string) string {
 		}
 	}
 	return strings.ReplaceAll(strings.ReplaceAll(value, "\r", ""), "\n", "")
+}
+
+func fpmQuote(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`, `$`, `\$`)
+	return `"` + replacer.Replace(value) + `"`
 }
 
 func EnsureSystemdTemplate() error {

@@ -108,6 +108,36 @@ func TestDoctorServiceStatusFallsBackToError(t *testing.T) {
 	}
 }
 
+func TestRestartUnitsAcceptsPHPVersion(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	phpDir := filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "php")
+	if err := os.MkdirAll(filepath.Join(phpDir, "8.4.20", "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("8.4.20", filepath.Join(phpDir, "8.4")); err != nil {
+		t.Fatal(err)
+	}
+
+	units, err := restartUnits([]string{"php", "8.4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(units) != 1 || units[0] != "routa-php@8.4.service" {
+		t.Fatalf("units = %#v", units)
+	}
+}
+
+func TestRestartUnitsAcceptsPHPUnitAlias(t *testing.T) {
+	units, err := restartUnits([]string{"php@8.4"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(units) != 1 || units[0] != "routa-php@8.4.service" {
+		t.Fatalf("units = %#v", units)
+	}
+}
+
 func TestOptionalServiceDoctorDetailReportsMissingBinaryAndPortConflict(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

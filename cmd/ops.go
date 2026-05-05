@@ -53,17 +53,13 @@ var reloadCmd = &cobra.Command{
 // --- restart --------------------------------------------------------------
 
 var restartCmd = &cobra.Command{
-	Use:   "restart [unit]",
+	Use:   "restart [unit|php [version]]",
 	Short: "Restart routa services (no arg = dns + caddy + php-fpm + active optional services)",
-	Args:  cobra.MaximumNArgs(1),
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(_ *cobra.Command, args []string) error {
-		var units []string
-		if len(args) == 1 {
-			units = []string{normalizeUnit(args[0])}
-		} else {
-			units = []string{"routa-dns.service", "routa-caddy.service"}
-			units = append(units, runningPHPUnits()...)
-			units = append(units, activeOptionalServiceUnits()...)
+		units, err := restartUnits(args)
+		if err != nil {
+			return err
 		}
 		for _, u := range units {
 			if err := prepareRestartUnit(u); err != nil {
@@ -76,6 +72,42 @@ var restartCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func restartUnits(args []string) ([]string, error) {
+	switch len(args) {
+	case 0:
+		units := []string{"routa-dns.service", "routa-caddy.service"}
+		units = append(units, runningPHPUnits()...)
+		units = append(units, activeOptionalServiceUnits()...)
+		return units, nil
+	case 1:
+		if args[0] == "php" {
+			units := runningPHPUnits()
+			if len(units) == 0 {
+				return nil, fmt.Errorf("no running routa PHP-FPM units found")
+			}
+			return units, nil
+		}
+		if strings.HasPrefix(args[0], "php@") {
+			return []string{"routa-" + normalizeUnit(args[0])}, nil
+		}
+		return []string{normalizeUnit(args[0])}, nil
+	case 2:
+		if args[0] != "php" {
+			return nil, fmt.Errorf("usage: routa restart [unit|php [version]]")
+		}
+		if err := requirePHP(args[1]); err != nil {
+			return nil, err
+		}
+		return []string{phpUnitName(args[1])}, nil
+	default:
+		return nil, fmt.Errorf("usage: routa restart [unit|php [version]]")
+	}
+}
+
+func phpUnitName(spec string) string {
+	return fmt.Sprintf("routa-php@%s.service", spec)
 }
 
 func normalizeUnit(s string) string {

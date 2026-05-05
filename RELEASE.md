@@ -99,3 +99,6 @@ The initial release line was reconstructed from the first commits:
 - Default Xdebug-capable PHP installs to `xdebug.mode=off` immediately after
   installation.
 - Add proxy helpers for Meilisearch, Typesense, and the MinIO console.
+- Add `routa restart php [version]` aliases for PHP-FPM lifecycle management.
+- Quote PHP-FPM pool env values so Laravel `.env` values containing `=`, `$`,
+  quotes, spaces, or empty entries do not break generated FPM configs.

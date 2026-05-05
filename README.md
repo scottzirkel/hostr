@@ -83,6 +83,7 @@ routa logs <name>               # tail Caddy access + PHP errors for one site
 routa doctor [--probe] [--json] # health check; --probe also HEADs every site
 routa reload                    # re-detect docroots, regen fragments, reload Caddy
 routa restart [unit]            # restart all routa services or one named unit
+routa restart php [version]     # restart all PHP-FPM units, or one PHP version
 
 routa php -v                    # run selected routa PHP for this directory/site
 routa composer install          # run Composer using selected routa PHP

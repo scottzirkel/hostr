@@ -119,12 +119,59 @@ func TestWriteFPMConfigIncludesSiteEnvPool(t *testing.T) {
 	for _, want := range []string{
 		"[routa-app]",
 		"listen = " + filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4-app.sock"),
-		"env[APP_ENV] = local",
-		"env[DB_DATABASE] = routa app",
+		`env[APP_ENV] = "local"`,
+		`env[DB_DATABASE] = "routa app"`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered config missing %q:\n%s", want, content)
 		}
+	}
+}
+
+func TestWriteFPMConfigQuotesEnvValues(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	project := filepath.Join(t.TempDir(), "app")
+	if err := os.MkdirAll(filepath.Join(project, "public"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for path, content := range map[string]string{
+		filepath.Join(project, "public", "index.php"): "<?php",
+		filepath.Join(project, ".env"):                `APP_KEY=base64:abc=` + "\n" + `APP_NAME="Routa \"Local\""` + "\nMAIL_FROM_NAME=${APP_NAME}\nEMPTY_VALUE=\n",
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := site.Save(&site.State{
+		DefaultPHP: "8.4",
+		Links:      []site.Link{{Name: "app", Path: project, Root: "public", Secure: true}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := WriteFPMConfig("8.4"); err != nil {
+		t.Fatal(err)
+	}
+
+	path := filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.conf")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		`env[APP_KEY] = "base64:abc="`,
+		`env[APP_NAME] = "Routa \\\"Local\\\""`,
+		`env[MAIL_FROM_NAME] = "\${APP_NAME}"`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rendered config missing %q:\n%s", want, content)
+		}
+	}
+	if strings.Contains(content, "env[EMPTY_VALUE]") {
+		t.Fatalf("rendered config should omit empty env values:\n%s", content)
 	}
 }
 
