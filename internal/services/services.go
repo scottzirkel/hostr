@@ -63,6 +63,14 @@ func ensureDir(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
 
+func managedBinaryDir(engine, version string) string {
+	return filepath.Join(paths.BinariesDir(), engine, version)
+}
+
+func managedBinaryPath(engine, version, binary string) string {
+	return filepath.Join(managedBinaryDir(engine, version), "bin", binary)
+}
+
 func validateVersionLabel(kind, version string) error {
 	if version == "" {
 		return fmt.Errorf("%s version cannot be empty", kind)
@@ -97,6 +105,126 @@ func ValidateTCPPort(label, port string) error {
 		return fmt.Errorf("%s port must be 1-65535", label)
 	}
 	return nil
+}
+
+func validateInstanceLabel(kind, instance string) error {
+	if instance == "" {
+		return nil
+	}
+	return validateVersionLabel(kind+" instance", instance)
+}
+
+func databaseInstanceToken(version, instance string) string {
+	if instance == "" {
+		return version
+	}
+	return version + "_" + instance
+}
+
+func splitDatabaseInstanceToken(token string) (string, string) {
+	version, instance, _ := strings.Cut(token, "_")
+	return version, instance
+}
+
+func databaseInstanceDir(root, engine, version, instance string) string {
+	if instance == "" {
+		return filepath.Join(root, "services", engine, version)
+	}
+	return filepath.Join(root, "services", engine, version, "instances", instance)
+}
+
+type databaseInstanceKey struct {
+	Version  string
+	Instance string
+}
+
+func discoverDatabaseInstances(engine, unitPrefix, defaultConfigFile string, validateVersion, validateInstance func(string) error) (map[databaseInstanceKey]bool, error) {
+	out := map[databaseInstanceKey]bool{}
+	for _, root := range []string{
+		filepath.Join(paths.DataDir(), "services", engine),
+		filepath.Join(paths.ConfigDir(), "services", engine),
+	} {
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			version := entry.Name()
+			if err := validateVersion(version); err != nil {
+				continue
+			}
+			if databaseDefaultInstanceExists(root, version, defaultConfigFile) {
+				out[databaseInstanceKey{Version: version}] = true
+			}
+			instanceRoot := filepath.Join(root, version, "instances")
+			instances, err := readVersionDirs(instanceRoot, validateInstance)
+			if err != nil {
+				return nil, err
+			}
+			for _, instance := range instances {
+				out[databaseInstanceKey{Version: version, Instance: instance}] = true
+			}
+		}
+	}
+
+	for _, unit := range databaseUnitNamesForUninstall(unitPrefix, validateVersion, validateInstance) {
+		token := strings.TrimSuffix(strings.TrimPrefix(unit, unitPrefix), ".service")
+		version, instance := splitDatabaseInstanceToken(token)
+		out[databaseInstanceKey{Version: version, Instance: instance}] = true
+	}
+	return out, nil
+}
+
+func databaseDefaultInstanceExists(root, version, defaultConfigFile string) bool {
+	if defaultConfigFile != "" {
+		if info, err := os.Stat(filepath.Join(root, version, defaultConfigFile)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	entries, err := os.ReadDir(filepath.Join(root, version))
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.Name() != "instances" {
+			return true
+		}
+	}
+	return false
+}
+
+func databaseUnitNamesForUninstall(prefix string, validateVersion, validateInstance func(string) error) []string {
+	seen := map[string]bool{}
+	for _, pattern := range []string{
+		filepath.Join(paths.SystemdUserDir(), prefix+"*.service"),
+		filepath.Join(paths.SystemdUserDir(), "default.target.wants", prefix+"*.service"),
+	} {
+		matches, _ := filepath.Glob(pattern)
+		for _, match := range matches {
+			unit := filepath.Base(match)
+			token := strings.TrimSuffix(strings.TrimPrefix(unit, prefix), ".service")
+			version, instance := splitDatabaseInstanceToken(token)
+			if err := validateVersion(version); err != nil {
+				continue
+			}
+			if err := validateInstance(instance); err != nil {
+				continue
+			}
+			seen[unit] = true
+		}
+	}
+	units := make([]string, 0, len(seen))
+	for unit := range seen {
+		units = append(units, unit)
+	}
+	sort.Strings(units)
+	return units
 }
 
 func readVersionDirs(root string, validate func(string) error) ([]string, error) {

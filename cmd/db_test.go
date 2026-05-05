@@ -14,6 +14,9 @@ func TestDBEngineVersionArgs(t *testing.T) {
 	if err := dbEngineVersionArgs(dbInstallCmd, []string{"mariadb", "11.4"}); err != nil {
 		t.Fatal(err)
 	}
+	if err := dbEngineVersionArgs(dbInstallCmd, []string{"mysql", "8.0"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := dbEngineVersionArgs(dbInstallCmd, []string{"postgres", "16"}); err != nil {
 		t.Fatal(err)
 	}
@@ -21,6 +24,7 @@ func TestDBEngineVersionArgs(t *testing.T) {
 	for _, args := range [][]string{
 		{"sqlite", "3"},
 		{"mariadb", "../11.4"},
+		{"mysql", "../8.0"},
 		{"postgres", "../16"},
 		{"mariadb"},
 	} {
@@ -40,16 +44,71 @@ func TestDatabasePortFromCommandAcceptsOnAlias(t *testing.T) {
 	}
 }
 
-func TestDBListShowsMariaDBInstances(t *testing.T) {
+func TestDatabaseTargetFromArgsAcceptsNamedInstanceWithPortAlias(t *testing.T) {
+	target, portArgs, err := databaseTargetFromArgs(dbStartCmd, []string{"mysql", "8.0", "affiliate-platform", "on", "3309"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.Engine != "mysql" || target.Version != "8.0" || target.Instance != "affiliate-platform" {
+		t.Fatalf("target = %#v", target)
+	}
+	if strings.Join(portArgs, " ") != "on 3309" {
+		t.Fatalf("port args = %#v", portArgs)
+	}
+
+	unit := databaseUnitName(target.Engine, target.Version, target.Instance)
+	if unit != "routa-mysql@8.0_affiliate-platform.service" {
+		t.Fatalf("unit = %q", unit)
+	}
+}
+
+func TestDatabaseTargetFromArgsKeepsDefaultInstancePortAlias(t *testing.T) {
+	target, portArgs, err := databaseTargetFromArgs(dbStartCmd, []string{"mysql", "8.0", "on", "3309"}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if target.Instance != "" {
+		t.Fatalf("instance = %q", target.Instance)
+	}
+	if strings.Join(portArgs, " ") != "on 3309" {
+		t.Fatalf("port args = %#v", portArgs)
+	}
+}
+
+func TestDatabaseCredentialsFromFlags(t *testing.T) {
+	creds, ok, err := databaseCredentialsFromFlags("mysql", "affiliate", "secret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected credentials")
+	}
+	if creds.User != "affiliate" || creds.Password != "secret" {
+		t.Fatalf("credentials = %#v", creds)
+	}
+}
+
+func TestDatabaseCredentialsFromFlagsRejectsNonMySQL(t *testing.T) {
+	if _, _, err := databaseCredentialsFromFlags("postgres", "app", "secret"); err == nil {
+		t.Fatal("expected non-mysql error")
+	}
+}
+
+func TestDatabaseCredentialsFromFlagsRequiresUser(t *testing.T) {
+	if _, _, err := databaseCredentialsFromFlags("mysql", "", "secret"); err == nil {
+		t.Fatal("expected missing user error")
+	}
+}
+
+func TestDBListShowsDatabaseInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
-	if err := os.MkdirAll(services.MariaDBDataDir("11.4"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(services.PostgresDataDir("16"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	touchFile(t, services.MariaDBConfigPath("11.4"))
+	touchFile(t, services.MySQLConfigPath("8.0"))
+	touchFile(t, services.PostgresConfigPath("16"))
+	touchFile(t, services.MySQLConfigPathForInstance("8.0", "affiliate-platform"))
+
 	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MariaDBUnitName("10.11"))
 	if err := os.MkdirAll(filepath.Dir(unitPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -73,17 +132,34 @@ func TestDBListShowsMariaDBInstances(t *testing.T) {
 	body := out.String()
 	for _, want := range []string{
 		"ENGINE",
+		"INSTANCE",
 		"mariadb",
 		"10.11",
 		"11.4",
+		"mysql",
+		"8.0",
+		"default",
+		"affiliate-platform",
 		"postgres",
 		"16",
 		services.MariaDBUnitName("10.11"),
 		services.MariaDBDataDir("11.4"),
+		services.MySQLDataDir("8.0"),
+		services.MySQLDataDirForInstance("8.0", "affiliate-platform"),
 		services.PostgresDataDir("16"),
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("db list output missing %q:\n%s", want, body)
 		}
+	}
+}
+
+func touchFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

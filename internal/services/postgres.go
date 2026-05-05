@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/systemd"
@@ -57,9 +56,10 @@ type postgresConfigData struct {
 }
 
 type PostgresInstance struct {
-	Version string
-	Unit    string
-	DataDir string
+	Version  string
+	Instance string
+	Unit     string
+	DataDir  string
 }
 
 func Postgres(version string) Definition {
@@ -67,14 +67,18 @@ func Postgres(version string) Definition {
 }
 
 func PostgresWithPort(version, port string) Definition {
+	return PostgresInstanceWithPort(version, "", port)
+}
+
+func PostgresInstanceWithPort(version, instance, port string) Definition {
 	return Definition{
 		Name:        "postgres",
-		UnitName:    PostgresUnitName(version),
+		UnitName:    PostgresUnitNameForInstance(version, instance),
 		BinaryName:  PostgresBinaryName,
-		ConfigPath:  PostgresConfigPath(version),
-		DataDir:     PostgresDataDir(version),
-		RenderUnit:  func(binary string) (string, error) { return RenderPostgresUnit(version, binary) },
-		WriteConfig: func() error { return WritePostgresConfigWithPort(version, port) },
+		ConfigPath:  PostgresConfigPathForInstance(version, instance),
+		DataDir:     PostgresDataDirForInstance(version, instance),
+		RenderUnit:  func(binary string) (string, error) { return RenderPostgresUnitForInstance(version, instance, binary) },
+		WriteConfig: func() error { return WritePostgresConfigForInstanceWithPort(version, instance, port) },
 	}
 }
 
@@ -82,28 +86,59 @@ func ValidatePostgresVersion(version string) error {
 	return validateVersionLabel("Postgres", version)
 }
 
+func ValidatePostgresInstance(instance string) error {
+	return validateInstanceLabel("Postgres", instance)
+}
+
 func PostgresUnitName(version string) string {
-	return "routa-postgres@" + version + ".service"
+	return PostgresUnitNameForInstance(version, "")
+}
+
+func PostgresUnitNameForInstance(version, instance string) string {
+	return "routa-postgres@" + databaseInstanceToken(version, instance) + ".service"
 }
 
 func PostgresDataDir(version string) string {
-	return filepath.Join(paths.DataDir(), "services", "postgres", version)
+	return PostgresDataDirForInstance(version, "")
+}
+
+func PostgresDataDirForInstance(version, instance string) string {
+	return databaseInstanceDir(paths.DataDir(), "postgres", version, instance)
 }
 
 func PostgresConfigPath(version string) string {
-	return filepath.Join(paths.ConfigDir(), "services", "postgres", version, "postgresql.conf")
+	return PostgresConfigPathForInstance(version, "")
+}
+
+func PostgresConfigPathForInstance(version, instance string) string {
+	return filepath.Join(databaseInstanceDir(paths.ConfigDir(), "postgres", version, instance), "postgresql.conf")
 }
 
 func PostgresPIDFile(version string) string {
-	return filepath.Join(paths.RunDir(), "postgres-"+version+".pid")
+	return PostgresPIDFileForInstance(version, "")
+}
+
+func PostgresPIDFileForInstance(version, instance string) string {
+	return filepath.Join(paths.RunDir(), "postgres-"+databaseInstanceToken(version, instance)+".pid")
 }
 
 func PostgresLogPath(version string) string {
-	return filepath.Join(paths.LogDir(), "postgres-"+version+".log")
+	return PostgresLogPathForInstance(version, "")
+}
+
+func PostgresLogPathForInstance(version, instance string) string {
+	return filepath.Join(paths.LogDir(), "postgres-"+databaseInstanceToken(version, instance)+".log")
 }
 
 func RenderPostgresUnit(version, binary string) (string, error) {
+	return RenderPostgresUnitForInstance(version, "", binary)
+}
+
+func RenderPostgresUnitForInstance(version, instance, binary string) (string, error) {
 	if err := ValidatePostgresVersion(version); err != nil {
+		return "", err
+	}
+	if err := ValidatePostgresInstance(instance); err != nil {
 		return "", err
 	}
 	if binary == "" {
@@ -112,9 +147,9 @@ func RenderPostgresUnit(version, binary string) (string, error) {
 	return render("postgres-unit", postgresUnitTmpl, postgresUnitData{
 		Version:    version,
 		Binary:     binary,
-		DataDir:    PostgresDataDir(version),
-		ConfigPath: PostgresConfigPath(version),
-		LogPath:    PostgresLogPath(version),
+		DataDir:    PostgresDataDirForInstance(version, instance),
+		ConfigPath: PostgresConfigPathForInstance(version, instance),
+		LogPath:    PostgresLogPathForInstance(version, instance),
 	})
 }
 
@@ -123,7 +158,14 @@ func RenderPostgresConfig(version string) (string, error) {
 }
 
 func RenderPostgresConfigWithPort(version, port string) (string, error) {
+	return RenderPostgresConfigForInstanceWithPort(version, "", port)
+}
+
+func RenderPostgresConfigForInstanceWithPort(version, instance, port string) (string, error) {
 	if err := ValidatePostgresVersion(version); err != nil {
+		return "", err
+	}
+	if err := ValidatePostgresInstance(instance); err != nil {
 		return "", err
 	}
 	if err := ValidateTCPPort("Postgres", port); err != nil {
@@ -131,7 +173,7 @@ func RenderPostgresConfigWithPort(version, port string) (string, error) {
 	}
 	return render("postgres-config", postgresConfigTmpl, postgresConfigData{
 		RunDir:  paths.RunDir(),
-		PIDFile: PostgresPIDFile(version),
+		PIDFile: PostgresPIDFileForInstance(version, instance),
 		Port:    port,
 	})
 }
@@ -141,15 +183,22 @@ func WritePostgresConfig(version string) error {
 }
 
 func WritePostgresConfigWithPort(version, port string) error {
+	return WritePostgresConfigForInstanceWithPort(version, "", port)
+}
+
+func WritePostgresConfigForInstanceWithPort(version, instance, port string) error {
 	if err := ValidatePostgresVersion(version); err != nil {
+		return err
+	}
+	if err := ValidatePostgresInstance(instance); err != nil {
 		return err
 	}
 	if err := ValidateTCPPort("Postgres", port); err != nil {
 		return err
 	}
 	for _, dir := range []string{
-		PostgresDataDir(version),
-		filepath.Dir(PostgresConfigPath(version)),
+		PostgresDataDirForInstance(version, instance),
+		filepath.Dir(PostgresConfigPathForInstance(version, instance)),
 		paths.RunDir(),
 		paths.LogDir(),
 	} {
@@ -157,11 +206,11 @@ func WritePostgresConfigWithPort(version, port string) error {
 			return err
 		}
 	}
-	content, err := RenderPostgresConfigWithPort(version, port)
+	content, err := RenderPostgresConfigForInstanceWithPort(version, instance, port)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(PostgresConfigPath(version), []byte(content), 0o644)
+	return os.WriteFile(PostgresConfigPathForInstance(version, instance), []byte(content), 0o644)
 }
 
 func EnsurePostgres(version string) error {
@@ -169,7 +218,14 @@ func EnsurePostgres(version string) error {
 }
 
 func EnsurePostgresWithPort(version, port string) error {
+	return EnsurePostgresInstanceWithPort(version, "", port)
+}
+
+func EnsurePostgresInstanceWithPort(version, instance, port string) error {
 	if err := ValidatePostgresVersion(version); err != nil {
+		return err
+	}
+	if err := ValidatePostgresInstance(instance); err != nil {
 		return err
 	}
 	if err := ValidateTCPPort("Postgres", port); err != nil {
@@ -179,10 +235,10 @@ func EnsurePostgresWithPort(version, port string) error {
 	if err != nil {
 		return err
 	}
-	if err := WriteFiles(PostgresWithPort(version, port), bin); err != nil {
+	if err := WriteFiles(PostgresInstanceWithPort(version, instance, port), bin); err != nil {
 		return err
 	}
-	if err := initializePostgresDataDir(version, bin); err != nil {
+	if err := initializePostgresDataDir(version, instance, bin); err != nil {
 		return err
 	}
 	return systemd.DaemonReload()
@@ -193,11 +249,11 @@ func InitializePostgresDataDir(version string) error {
 	if err != nil {
 		return err
 	}
-	return initializePostgresDataDir(version, bin)
+	return initializePostgresDataDir(version, "", bin)
 }
 
-func initializePostgresDataDir(version, serverBin string) error {
-	initialized, err := PostgresDataDirInitialized(version)
+func initializePostgresDataDir(version, instance, serverBin string) error {
+	initialized, err := PostgresDataDirInitializedForInstance(version, instance)
 	if err != nil {
 		return err
 	}
@@ -208,7 +264,7 @@ func initializePostgresDataDir(version, serverBin string) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(initBin, "-D", PostgresDataDir(version))
+	cmd := exec.Command(initBin, "-D", PostgresDataDirForInstance(version, instance))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -269,7 +325,11 @@ func postgresInitCommandCandidates(version, serverBin string) []string {
 }
 
 func PostgresDataDirInitialized(version string) (bool, error) {
-	versionFile := filepath.Join(PostgresDataDir(version), "PG_VERSION")
+	return PostgresDataDirInitializedForInstance(version, "")
+}
+
+func PostgresDataDirInitializedForInstance(version, instance string) (bool, error) {
+	versionFile := filepath.Join(PostgresDataDirForInstance(version, instance), "PG_VERSION")
 	info, err := os.Stat(versionFile)
 	if err == nil {
 		return !info.IsDir(), nil
@@ -281,64 +341,28 @@ func PostgresDataDirInitialized(version string) (bool, error) {
 }
 
 func InstalledPostgresInstances() ([]PostgresInstance, error) {
-	versions := map[string]bool{}
-	for _, root := range []string{
-		filepath.Join(paths.DataDir(), "services", "postgres"),
-		filepath.Join(paths.ConfigDir(), "services", "postgres"),
-	} {
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			if err := ValidatePostgresVersion(entry.Name()); err == nil {
-				versions[entry.Name()] = true
-			}
-		}
+	instances, err := discoverDatabaseInstances("postgres", "routa-postgres@", "postgresql.conf", ValidatePostgresVersion, ValidatePostgresInstance)
+	if err != nil {
+		return nil, err
 	}
-
-	for _, unit := range PostgresUnitNamesForUninstall() {
-		version := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-postgres@"), ".service")
-		versions[version] = true
-	}
-
-	out := make([]PostgresInstance, 0, len(versions))
-	for version := range versions {
+	out := make([]PostgresInstance, 0, len(instances))
+	for instance := range instances {
 		out = append(out, PostgresInstance{
-			Version: version,
-			Unit:    PostgresUnitName(version),
-			DataDir: PostgresDataDir(version),
+			Version:  instance.Version,
+			Instance: instance.Instance,
+			Unit:     PostgresUnitNameForInstance(instance.Version, instance.Instance),
+			DataDir:  PostgresDataDirForInstance(instance.Version, instance.Instance),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Version < out[j].Version })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Version == out[j].Version {
+			return out[i].Instance < out[j].Instance
+		}
+		return out[i].Version < out[j].Version
+	})
 	return out, nil
 }
 
 func PostgresUnitNamesForUninstall() []string {
-	seen := map[string]bool{}
-	for _, pattern := range []string{
-		filepath.Join(paths.SystemdUserDir(), "routa-postgres@*.service"),
-		filepath.Join(paths.SystemdUserDir(), "default.target.wants", "routa-postgres@*.service"),
-	} {
-		matches, _ := filepath.Glob(pattern)
-		for _, match := range matches {
-			unit := filepath.Base(match)
-			version := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-postgres@"), ".service")
-			if err := ValidatePostgresVersion(version); err == nil {
-				seen[unit] = true
-			}
-		}
-	}
-	units := make([]string, 0, len(seen))
-	for unit := range seen {
-		units = append(units, unit)
-	}
-	sort.Strings(units)
-	return units
+	return databaseUnitNamesForUninstall("routa-postgres@", ValidatePostgresVersion, ValidatePostgresInstance)
 }

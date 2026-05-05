@@ -497,6 +497,11 @@ func installedOptionalServiceUnits() []string {
 			out = append(out, unit)
 		}
 	}
+	for _, unit := range services.MySQLUnitNamesForUninstall() {
+		if routaUnitExists(unit) {
+			out = append(out, unit)
+		}
+	}
 	for _, unit := range services.PostgresUnitNamesForUninstall() {
 		if routaUnitExists(unit) {
 			out = append(out, unit)

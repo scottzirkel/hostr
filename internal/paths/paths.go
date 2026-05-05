@@ -19,6 +19,9 @@ func ConfigDir() string { return filepath.Join(xdg("XDG_CONFIG_HOME", ".config")
 func RunDir() string    { return filepath.Join(StateDir(), "run") }
 func LogDir() string    { return filepath.Join(StateDir(), "log") }
 func PHPDir() string    { return filepath.Join(DataDir(), "php") }
+func BinariesDir() string {
+	return filepath.Join(DataDir(), "binaries")
+}
 func PHPConfigDir() string {
 	return filepath.Join(ConfigDir(), "php")
 }

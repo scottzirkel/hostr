@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/systemd"
@@ -60,9 +59,10 @@ type mariadbConfigData struct {
 }
 
 type MariaDBInstance struct {
-	Version string
-	Unit    string
-	DataDir string
+	Version  string
+	Instance string
+	Unit     string
+	DataDir  string
 }
 
 func MariaDB(version string) Definition {
@@ -70,14 +70,18 @@ func MariaDB(version string) Definition {
 }
 
 func MariaDBWithPort(version, port string) Definition {
+	return MariaDBInstanceWithPort(version, "", port)
+}
+
+func MariaDBInstanceWithPort(version, instance, port string) Definition {
 	return Definition{
 		Name:        "mariadb",
-		UnitName:    MariaDBUnitName(version),
+		UnitName:    MariaDBUnitNameForInstance(version, instance),
 		BinaryName:  MariaDBBinaryName,
-		ConfigPath:  MariaDBConfigPath(version),
-		DataDir:     MariaDBDataDir(version),
-		RenderUnit:  func(binary string) (string, error) { return RenderMariaDBUnit(version, binary) },
-		WriteConfig: func() error { return WriteMariaDBConfigWithPort(version, port) },
+		ConfigPath:  MariaDBConfigPathForInstance(version, instance),
+		DataDir:     MariaDBDataDirForInstance(version, instance),
+		RenderUnit:  func(binary string) (string, error) { return RenderMariaDBUnitForInstance(version, instance, binary) },
+		WriteConfig: func() error { return WriteMariaDBConfigForInstanceWithPort(version, instance, port) },
 	}
 }
 
@@ -85,32 +89,67 @@ func ValidateMariaDBVersion(version string) error {
 	return validateVersionLabel("MariaDB", version)
 }
 
+func ValidateMariaDBInstance(instance string) error {
+	return validateInstanceLabel("MariaDB", instance)
+}
+
 func MariaDBUnitName(version string) string {
-	return "routa-mariadb@" + version + ".service"
+	return MariaDBUnitNameForInstance(version, "")
+}
+
+func MariaDBUnitNameForInstance(version, instance string) string {
+	return "routa-mariadb@" + databaseInstanceToken(version, instance) + ".service"
 }
 
 func MariaDBDataDir(version string) string {
-	return filepath.Join(paths.DataDir(), "services", "mariadb", version)
+	return MariaDBDataDirForInstance(version, "")
+}
+
+func MariaDBDataDirForInstance(version, instance string) string {
+	return databaseInstanceDir(paths.DataDir(), "mariadb", version, instance)
 }
 
 func MariaDBConfigPath(version string) string {
-	return filepath.Join(paths.ConfigDir(), "services", "mariadb", version, "my.cnf")
+	return MariaDBConfigPathForInstance(version, "")
+}
+
+func MariaDBConfigPathForInstance(version, instance string) string {
+	return filepath.Join(databaseInstanceDir(paths.ConfigDir(), "mariadb", version, instance), "my.cnf")
 }
 
 func MariaDBSocketPath(version string) string {
-	return filepath.Join(paths.RunDir(), "mariadb-"+version+".sock")
+	return MariaDBSocketPathForInstance(version, "")
+}
+
+func MariaDBSocketPathForInstance(version, instance string) string {
+	return filepath.Join(paths.RunDir(), "mariadb-"+databaseInstanceToken(version, instance)+".sock")
 }
 
 func MariaDBPIDFile(version string) string {
-	return filepath.Join(paths.RunDir(), "mariadb-"+version+".pid")
+	return MariaDBPIDFileForInstance(version, "")
+}
+
+func MariaDBPIDFileForInstance(version, instance string) string {
+	return filepath.Join(paths.RunDir(), "mariadb-"+databaseInstanceToken(version, instance)+".pid")
 }
 
 func MariaDBLogPath(version string) string {
-	return filepath.Join(paths.LogDir(), "mariadb-"+version+".log")
+	return MariaDBLogPathForInstance(version, "")
+}
+
+func MariaDBLogPathForInstance(version, instance string) string {
+	return filepath.Join(paths.LogDir(), "mariadb-"+databaseInstanceToken(version, instance)+".log")
 }
 
 func RenderMariaDBUnit(version, binary string) (string, error) {
+	return RenderMariaDBUnitForInstance(version, "", binary)
+}
+
+func RenderMariaDBUnitForInstance(version, instance, binary string) (string, error) {
 	if err := ValidateMariaDBVersion(version); err != nil {
+		return "", err
+	}
+	if err := ValidateMariaDBInstance(instance); err != nil {
 		return "", err
 	}
 	if binary == "" {
@@ -119,7 +158,7 @@ func RenderMariaDBUnit(version, binary string) (string, error) {
 	return render("mariadb-unit", mariadbUnitTmpl, mariadbUnitData{
 		Version:    version,
 		Binary:     binary,
-		ConfigPath: MariaDBConfigPath(version),
+		ConfigPath: MariaDBConfigPathForInstance(version, instance),
 	})
 }
 
@@ -128,17 +167,24 @@ func RenderMariaDBConfig(version string) (string, error) {
 }
 
 func RenderMariaDBConfigWithPort(version, port string) (string, error) {
+	return RenderMariaDBConfigForInstanceWithPort(version, "", port)
+}
+
+func RenderMariaDBConfigForInstanceWithPort(version, instance, port string) (string, error) {
 	if err := ValidateMariaDBVersion(version); err != nil {
+		return "", err
+	}
+	if err := ValidateMariaDBInstance(instance); err != nil {
 		return "", err
 	}
 	if err := ValidateTCPPort("MariaDB", port); err != nil {
 		return "", err
 	}
 	return render("mariadb-config", mariadbConfigTmpl, mariadbConfigData{
-		DataDir:    MariaDBDataDir(version),
-		SocketPath: MariaDBSocketPath(version),
-		PIDFile:    MariaDBPIDFile(version),
-		LogPath:    MariaDBLogPath(version),
+		DataDir:    MariaDBDataDirForInstance(version, instance),
+		SocketPath: MariaDBSocketPathForInstance(version, instance),
+		PIDFile:    MariaDBPIDFileForInstance(version, instance),
+		LogPath:    MariaDBLogPathForInstance(version, instance),
 		Port:       port,
 	})
 }
@@ -148,15 +194,22 @@ func WriteMariaDBConfig(version string) error {
 }
 
 func WriteMariaDBConfigWithPort(version, port string) error {
+	return WriteMariaDBConfigForInstanceWithPort(version, "", port)
+}
+
+func WriteMariaDBConfigForInstanceWithPort(version, instance, port string) error {
 	if err := ValidateMariaDBVersion(version); err != nil {
+		return err
+	}
+	if err := ValidateMariaDBInstance(instance); err != nil {
 		return err
 	}
 	if err := ValidateTCPPort("MariaDB", port); err != nil {
 		return err
 	}
 	for _, dir := range []string{
-		MariaDBDataDir(version),
-		filepath.Dir(MariaDBConfigPath(version)),
+		MariaDBDataDirForInstance(version, instance),
+		filepath.Dir(MariaDBConfigPathForInstance(version, instance)),
 		paths.RunDir(),
 		paths.LogDir(),
 	} {
@@ -164,11 +217,11 @@ func WriteMariaDBConfigWithPort(version, port string) error {
 			return err
 		}
 	}
-	content, err := RenderMariaDBConfigWithPort(version, port)
+	content, err := RenderMariaDBConfigForInstanceWithPort(version, instance, port)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(MariaDBConfigPath(version), []byte(content), 0o644)
+	return os.WriteFile(MariaDBConfigPathForInstance(version, instance), []byte(content), 0o644)
 }
 
 func EnsureMariaDB(version string) error {
@@ -176,7 +229,14 @@ func EnsureMariaDB(version string) error {
 }
 
 func EnsureMariaDBWithPort(version, port string) error {
+	return EnsureMariaDBInstanceWithPort(version, "", port)
+}
+
+func EnsureMariaDBInstanceWithPort(version, instance, port string) error {
 	if err := ValidateMariaDBVersion(version); err != nil {
+		return err
+	}
+	if err := ValidateMariaDBInstance(instance); err != nil {
 		return err
 	}
 	if err := ValidateTCPPort("MariaDB", port); err != nil {
@@ -186,10 +246,10 @@ func EnsureMariaDBWithPort(version, port string) error {
 	if err != nil {
 		return err
 	}
-	if err := WriteFiles(MariaDBWithPort(version, port), bin); err != nil {
+	if err := WriteFiles(MariaDBInstanceWithPort(version, instance, port), bin); err != nil {
 		return err
 	}
-	if err := initializeMariaDBDataDir(version, bin); err != nil {
+	if err := initializeMariaDBDataDir(version, instance, bin); err != nil {
 		return err
 	}
 	return systemd.DaemonReload()
@@ -200,11 +260,11 @@ func InitializeMariaDBDataDir(version string) error {
 	if err != nil {
 		return err
 	}
-	return initializeMariaDBDataDir(version, bin)
+	return initializeMariaDBDataDir(version, "", bin)
 }
 
-func initializeMariaDBDataDir(version, serverBin string) error {
-	initialized, err := MariaDBDataDirInitialized(version)
+func initializeMariaDBDataDir(version, instance, serverBin string) error {
+	initialized, err := MariaDBDataDirInitializedForInstance(version, instance)
 	if err != nil {
 		return err
 	}
@@ -216,8 +276,8 @@ func initializeMariaDBDataDir(version, serverBin string) error {
 		return err
 	}
 	cmd := exec.Command(initBin,
-		"--defaults-file="+MariaDBConfigPath(version),
-		"--datadir="+MariaDBDataDir(version),
+		"--defaults-file="+MariaDBConfigPathForInstance(version, instance),
+		"--datadir="+MariaDBDataDirForInstance(version, instance),
 		"--skip-test-db",
 	)
 	cmd.Stdout = os.Stdout
@@ -259,7 +319,11 @@ func mariadbBinaryCandidates(version string) []string {
 }
 
 func MariaDBDataDirInitialized(version string) (bool, error) {
-	mysqlDir := filepath.Join(MariaDBDataDir(version), "mysql")
+	return MariaDBDataDirInitializedForInstance(version, "")
+}
+
+func MariaDBDataDirInitializedForInstance(version, instance string) (bool, error) {
+	mysqlDir := filepath.Join(MariaDBDataDirForInstance(version, instance), "mysql")
 	info, err := os.Stat(mysqlDir)
 	if err == nil {
 		return info.IsDir(), nil
@@ -271,66 +335,30 @@ func MariaDBDataDirInitialized(version string) (bool, error) {
 }
 
 func InstalledMariaDBInstances() ([]MariaDBInstance, error) {
-	versions := map[string]bool{}
-	for _, root := range []string{
-		filepath.Join(paths.DataDir(), "services", "mariadb"),
-		filepath.Join(paths.ConfigDir(), "services", "mariadb"),
-	} {
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return nil, err
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			if err := ValidateMariaDBVersion(entry.Name()); err == nil {
-				versions[entry.Name()] = true
-			}
-		}
+	instances, err := discoverDatabaseInstances("mariadb", "routa-mariadb@", "my.cnf", ValidateMariaDBVersion, ValidateMariaDBInstance)
+	if err != nil {
+		return nil, err
 	}
-
-	for _, unit := range MariaDBUnitNamesForUninstall() {
-		version := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-mariadb@"), ".service")
-		versions[version] = true
-	}
-
-	out := make([]MariaDBInstance, 0, len(versions))
-	for version := range versions {
+	out := make([]MariaDBInstance, 0, len(instances))
+	for instance := range instances {
 		out = append(out, MariaDBInstance{
-			Version: version,
-			Unit:    MariaDBUnitName(version),
-			DataDir: MariaDBDataDir(version),
+			Version:  instance.Version,
+			Instance: instance.Instance,
+			Unit:     MariaDBUnitNameForInstance(instance.Version, instance.Instance),
+			DataDir:  MariaDBDataDirForInstance(instance.Version, instance.Instance),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Version < out[j].Version })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Version == out[j].Version {
+			return out[i].Instance < out[j].Instance
+		}
+		return out[i].Version < out[j].Version
+	})
 	return out, nil
 }
 
 func MariaDBUnitNamesForUninstall() []string {
-	seen := map[string]bool{}
-	for _, pattern := range []string{
-		filepath.Join(paths.SystemdUserDir(), "routa-mariadb@*.service"),
-		filepath.Join(paths.SystemdUserDir(), "default.target.wants", "routa-mariadb@*.service"),
-	} {
-		matches, _ := filepath.Glob(pattern)
-		for _, match := range matches {
-			unit := filepath.Base(match)
-			version := strings.TrimSuffix(strings.TrimPrefix(unit, "routa-mariadb@"), ".service")
-			if err := ValidateMariaDBVersion(version); err == nil {
-				seen[unit] = true
-			}
-		}
-	}
-	units := make([]string, 0, len(seen))
-	for unit := range seen {
-		units = append(units, unit)
-	}
-	sort.Strings(units)
-	return units
+	return databaseUnitNamesForUninstall("routa-mariadb@", ValidateMariaDBVersion, ValidateMariaDBInstance)
 }
 
 func findMariaDBInitCommand(version, serverBin string) (string, error) {

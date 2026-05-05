@@ -80,3 +80,32 @@ func TestPostgresPathsAreVersionScoped(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgresPathsAreInstanceScoped(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	version := "16"
+	instance := "analytics"
+	tests := map[string]string{
+		"unit":   "routa-postgres@16_analytics.service",
+		"config": filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "routa", "services", "postgres", version, "instances", instance, "postgresql.conf"),
+		"data":   filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "services", "postgres", version, "instances", instance),
+		"pid":    filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "postgres-"+version+"_"+instance+".pid"),
+		"log":    filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "postgres-"+version+"_"+instance+".log"),
+	}
+
+	got := map[string]string{
+		"unit":   PostgresUnitNameForInstance(version, instance),
+		"config": PostgresConfigPathForInstance(version, instance),
+		"data":   PostgresDataDirForInstance(version, instance),
+		"pid":    PostgresPIDFileForInstance(version, instance),
+		"log":    PostgresLogPathForInstance(version, instance),
+	}
+	for name, want := range tests {
+		if got[name] != want {
+			t.Fatalf("%s path = %q, want %q", name, got[name], want)
+		}
+	}
+}

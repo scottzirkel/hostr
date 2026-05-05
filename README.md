@@ -92,6 +92,8 @@ routa dev [name]                # run a detected dev server and proxy it
 routa redis start [--port 6380] / stop / restart / status
 routa mail start on 8026 --smtp-port 1026 / stop / restart / status / proxy
 routa db start mariadb 11.4 on 3307
+routa db start mysql 8.0 affiliate-platform on 3309 --user affiliate --password secret
+routa db credentials mysql 8.0 affiliate-platform --user affiliate --password new-secret
 routa db start postgres 16 on 5433
 routa search start meilisearch 1.12 on 7701
 routa search start typesense 28 on 8109
@@ -296,7 +298,8 @@ database under `~/.local/share/routa/services/mailpit/`, binds the web UI to
 
 ## Databases
 
-routa can manage local MariaDB and Postgres instances as systemd user services:
+routa can manage local MariaDB, MySQL, and Postgres instances as systemd user
+services. MySQL installs a routa-owned server runtime on demand:
 
 ```bash
 routa db install mariadb 11.4
@@ -305,19 +308,58 @@ routa db start mariadb 11.4 on 3307
 routa db status mariadb 11.4
 routa db stop mariadb 11.4
 
+routa db install mysql 8.0
+routa db start mysql 8.0 on 3309
+routa db start mysql 8.0 affiliate-platform on 3310 --user affiliate --password secret
+routa db credentials mysql 8.0 affiliate-platform --user affiliate --password new-secret
+
 routa db install postgres 16
 routa db start postgres 16 on 5433
+routa db start postgres 16 reporting on 5434
 routa db list
 ```
 
-Database services are version-isolated when the system provides matching
-binaries. routa searches common versioned binary names and paths first
-(`postgres-16`, `/usr/lib/postgresql/16/bin/postgres`, `mariadbd-11.4`, and
-similar), then falls back to the unversioned binary only when its `--version`
-output matches the requested version. Data is kept under
-`~/.local/share/routa/services/<engine>/<version>/`; routa initializes missing
-data directories with the distro-provided init tools and does not delete
-database data.
+Database services are version-isolated and run as systemd user services, so
+they do not start, stop, or write into system database services such as
+`mysql.service` or `/var/lib/mysql`. For MySQL, routa downloads Oracle's generic
+Linux server archive into `~/.local/share/routa/binaries/mysql/` and uses that
+routa-owned `mysqld` before considering anything from the system. If the MySQL
+runtime needs OS shared libraries, routa prints the package command to install
+them. For other engines, routa searches common versioned binary names and paths
+first (`postgres-16`, `/usr/lib/postgresql/16/bin/postgres`, `mariadbd-11.4`,
+and similar), then falls back to the unversioned binary only when its
+`--version` output matches the requested version. MySQL must resolve to an
+Oracle MySQL-compatible server; a MariaDB `mysqld` binary is rejected for
+`routa db ... mysql`.
+
+By default, each database service is isolated by engine and version:
+`routa-mysql@8.0.service` stores data under
+`~/.local/share/routa/services/mysql/8.0/`. Add an instance name before
+`on <port>` to run separate databases for separate projects on the same engine
+and version, such as `routa-mysql@8.0_affiliate-platform.service` with data
+under `~/.local/share/routa/services/mysql/8.0/instances/affiliate-platform/`.
+routa initializes missing data directories with the distro-provided init tools
+and does not delete database data.
+
+MySQL starts with an empty local `root` password for routa management. Pass
+`--user` and `--password` to `install` or `start` to save application
+credentials for an instance; when the service is running routa creates or
+updates that local app user and grants it privileges. Use
+`routa db credentials mysql <version> [instance] --user <user> --password <password>`
+to rotate credentials later. Saved credentials are stored with file mode `0600`
+under the instance config directory and are applied on the next start if the
+service is currently stopped. routa does not manage the MySQL `root` account as
+an application user.
+
+Common MySQL paths:
+
+| | |
+|---|---|
+| Runtime | `~/.local/share/routa/binaries/mysql/<version>/` |
+| Default instance data | `~/.local/share/routa/services/mysql/<version>/` |
+| Named instance data | `~/.local/share/routa/services/mysql/<version>/instances/<name>/` |
+| Named instance config | `~/.config/routa/services/mysql/<version>/instances/<name>/my.cnf` |
+| Named instance credentials | `~/.config/routa/services/mysql/<version>/instances/<name>/credentials.json` |
 
 ## Search
 
@@ -394,9 +436,9 @@ prefix.
 
 | | |
 |---|---|
-| `~/.local/share/routa/` | PHP builds, Caddyfile, site fragments, CA stash |
+| `~/.local/share/routa/` | PHP builds, routa-managed service runtimes, optional service data, Caddyfile, site fragments, CA stash |
 | `~/.local/state/routa/` | sockets, logs, fpm runtime config |
-| `~/.config/routa/` | `state.json` (versioned tracked dirs, tracked roots, ignored sites, links, aliases, default PHP), PHP ini overrides, optional service config |
+| `~/.config/routa/` | `state.json` (versioned tracked dirs, tracked roots, ignored sites, links, aliases, default PHP), PHP ini overrides, optional service config and saved credentials |
 | `~/.config/systemd/user/routa-*.service` | `routa-dns`, `routa-caddy`, `routa-php@<spec>`, optional service units |
 
 ## State file compatibility
@@ -411,7 +453,7 @@ instead of guessing how to interpret it.
 - **DNS:** tiny Go responder for `*.test` on `127.0.0.1:1053` (`miekg/dns`). Zero upstream config — answers `127.0.0.1` for `*.test`, NXDOMAIN otherwise.
 - **TLS:** Caddy issues from its built-in local CA. Root cert installed into the system trust store via p11-kit's `trust anchor` (so `curl` and Chromium-family browsers trust it).
 - **PHP:** musl-static builds from [dl.static-php.dev](https://dl.static-php.dev/static-php-cli/bulk) — Laravel-ready extension set, no glibc dependency, plus routa's Laravel-friendly FPM ini defaults. Per-version socket via templated systemd unit `routa-php@<spec>.service`.
-- **Optional services:** Redis, Mailpit, MariaDB, Postgres, Meilisearch, Typesense, and MinIO run as systemd user services using system-installed binaries. Stateful services keep data under `~/.local/share/routa/services/`.
+- **Optional services:** Redis, Mailpit, MariaDB, MySQL, Postgres, Meilisearch, Typesense, and MinIO run as systemd user services. MySQL uses routa-managed runtimes under `~/.local/share/routa/binaries/mysql/`; the remaining services currently use matching system binaries. Stateful services keep data under `~/.local/share/routa/services/`.
 - **Routing:** Caddy's `php_fastcgi` for PHP sites (Caddy default `try_files` handles Laravel routing). `file_server` for static.
 - **Process management:** systemd user units. routa itself is a stateless CLI — no daemon.
 

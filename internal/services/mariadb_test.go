@@ -81,3 +81,34 @@ func TestMariaDBPathsAreVersionScoped(t *testing.T) {
 		}
 	}
 }
+
+func TestMariaDBPathsAreInstanceScoped(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	version := "11.4"
+	instance := "legacy-app"
+	tests := map[string]string{
+		"unit":   "routa-mariadb@11.4_legacy-app.service",
+		"config": filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "routa", "services", "mariadb", version, "instances", instance, "my.cnf"),
+		"data":   filepath.Join(os.Getenv("XDG_DATA_HOME"), "routa", "services", "mariadb", version, "instances", instance),
+		"socket": filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "mariadb-"+version+"_"+instance+".sock"),
+		"pid":    filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "mariadb-"+version+"_"+instance+".pid"),
+		"log":    filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "mariadb-"+version+"_"+instance+".log"),
+	}
+
+	got := map[string]string{
+		"unit":   MariaDBUnitNameForInstance(version, instance),
+		"config": MariaDBConfigPathForInstance(version, instance),
+		"data":   MariaDBDataDirForInstance(version, instance),
+		"socket": MariaDBSocketPathForInstance(version, instance),
+		"pid":    MariaDBPIDFileForInstance(version, instance),
+		"log":    MariaDBLogPathForInstance(version, instance),
+	}
+	for name, want := range tests {
+		if got[name] != want {
+			t.Fatalf("%s path = %q, want %q", name, got[name], want)
+		}
+	}
+}
