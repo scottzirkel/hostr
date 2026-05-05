@@ -397,8 +397,9 @@ The generated environment file sets local development credentials
 ## TUI
 
 `routa` opens a Bubble Tea dashboard with subdomain grouping, live HTTP probes,
-health status, log previews, filters, sorting, collapsible groups, and per-site
-actions. `routa tui` remains as a hidden compatibility alias.
+health status, optional service status, log previews, filters, sorting,
+collapsible groups, and per-site actions. `routa tui` remains as a hidden
+compatibility alias.
 
 | key | action |
 |---|---|
@@ -411,6 +412,9 @@ actions. `routa tui` remains as a hidden compatibility alias.
 | `a` | toggle auto-refresh |
 | `z` | cycle sort: name → problems → latency → kind |
 | Space | collapse / expand the selected parent group |
+| `[` / `]` | select an optional service in the inspector |
+| `v` | start or stop the selected optional service after confirmation |
+| `V` | restart the selected optional service after confirmation |
 | `/` | name search; type, Enter to lock, Esc to clear |
 | `s` | cycle HTTPS filter: all → secure → insecure |
 | `t` | cycle kind filter: all → php → static → proxy |

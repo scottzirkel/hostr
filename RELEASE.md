@@ -1,6 +1,6 @@
 # Release Process
 
-routa uses SemVer-style tags, with `v0.x.y` while the project is pre-1.0.
+routa uses SemVer-style tags.
 
 ## Version Rules
 
@@ -78,5 +78,15 @@ The initial release line was reconstructed from the first commits:
 - `v1.2.0`: project rename from hostr to routa, `track`/`untrack` commands with Valet-compatible aliases, ignored tracked-site support, static `public/` detection, and static SPA fallback routing.
 - `v1.3.0`: generic `routa dev` command for process-backed apps, detection for package.json dev scripts, Rails, Phoenix, and Django, port discovery, and WebSocket-friendly proxy forwarding headers.
 - `v1.4.0`: site aliases with `routa alias`/`unalias`, tracked-dir root overrides with `routa track --root`, per-site PHP `.env` passthrough through generated PHP-FPM pools, and expanded routing edge coverage.
+- `v1.5.0`: versioned optional services for Redis, Mailpit, MariaDB, Postgres, Meilisearch, Typesense, and MinIO with systemd user units and isolated data directories.
+- `v1.6.0`: routa-managed MySQL runtime installation, named MySQL database instances, application credentials, runtime dependency diagnostics, and active optional-service restarts.
 
 ## Pending Release Notes
+
+### v1.7.0 — optional service dashboard actions
+
+- Show installed optional services, ports, data directories, and active/inactive
+  state in the TUI inspector.
+- Add TUI optional-service selection plus confirmed start/stop and restart
+  actions.
+- Update dashboard docs and `routa restart` help for optional service behavior.

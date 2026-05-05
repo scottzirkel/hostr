@@ -20,7 +20,9 @@ import (
 
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/php"
+	"github.com/scottzirkel/routa/internal/services"
 	"github.com/scottzirkel/routa/internal/site"
+	"github.com/scottzirkel/routa/internal/systemd"
 )
 
 // Column widths flex with the terminal. NAME, HTTPS, STAT always show.
@@ -119,6 +121,19 @@ type healthState struct {
 
 type healthMsg healthState
 
+type optionalService struct {
+	Name    string
+	Unit    string
+	Ports   string
+	DataDir string
+	Active  bool
+}
+
+type servicesMsg struct {
+	services []optionalService
+	err      error
+}
+
 type logPreviewMsg struct {
 	name  string
 	lines []string
@@ -131,12 +146,16 @@ const (
 	actionNone actionKind = iota
 	actionUnlink
 	actionSecure
+	actionServiceStart
+	actionServiceStop
+	actionServiceRestart
 )
 
 type confirmState struct {
-	kind actionKind
-	site site.Resolved
-	text string
+	kind    actionKind
+	site    site.Resolved
+	service optionalService
+	text    string
 }
 
 type rootEditState struct {
@@ -217,31 +236,34 @@ func (f filters) any() bool {
 }
 
 type model struct {
-	sites     []site.Resolved
-	links     map[string]site.Link
-	results   map[string]probeResult // missing key = pending
-	docExists map[string]bool
-	logs      map[string][]string
-	health    healthState
-	collapsed map[string]bool
-	cursor    int
-	offset    int
-	width     int
-	height    int
-	filt      filters
-	sort      sortMode
-	searching bool // true while user is typing into the search box
-	help      bool
-	auto      bool
-	status    string
-	confirm   *confirmState
-	rootEdit  *rootEditState
+	sites      []site.Resolved
+	links      map[string]site.Link
+	results    map[string]probeResult // missing key = pending
+	docExists  map[string]bool
+	logs       map[string][]string
+	services   []optionalService
+	serviceErr string
+	serviceCur int
+	health     healthState
+	collapsed  map[string]bool
+	cursor     int
+	offset     int
+	width      int
+	height     int
+	filt       filters
+	sort       sortMode
+	searching  bool // true while user is typing into the search box
+	help       bool
+	auto       bool
+	status     string
+	confirm    *confirmState
+	rootEdit   *rootEditState
 }
 
 // --- Init / Update -------------------------------------------------------
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+	return tea.Batch(m.probeAll(), healthCmd(), servicesCmd(), m.logPreviewSelected())
 }
 
 func (m model) probeAll() tea.Cmd {
@@ -289,6 +311,176 @@ func collectHealth() healthState {
 func systemdUserActive(unit string) bool {
 	out, _ := exec.Command("systemctl", "--user", "is-active", unit).Output()
 	return strings.TrimSpace(string(out)) == "active"
+}
+
+func servicesCmd() tea.Cmd {
+	return func() tea.Msg {
+		services, err := collectOptionalServices()
+		return servicesMsg{services: services, err: err}
+	}
+}
+
+func collectOptionalServices() ([]optionalService, error) {
+	out := []optionalService{}
+	add := func(name, unit, ports, dataDir string) {
+		out = append(out, optionalService{
+			Name:    name,
+			Unit:    unit,
+			Ports:   ports,
+			DataDir: dataDir,
+			Active:  systemdUserActive(unit),
+		})
+	}
+
+	if serviceExists(services.RedisUnitName, services.RedisDataDir(), services.RedisConfigPath()) {
+		port, err := services.RedisConfiguredPort()
+		if err != nil {
+			return nil, err
+		}
+		add("redis", services.RedisUnitName, port, services.RedisDataDir())
+	}
+	if serviceExists(services.MailpitUnitName, services.MailpitDataDir(), "") {
+		web := unitFlagPort(services.MailpitUnitName, "--listen", services.MailpitWebPort)
+		smtp := unitFlagPort(services.MailpitUnitName, "--smtp", services.MailpitSMTPPort)
+		add("mailpit", services.MailpitUnitName, "web "+web+", smtp "+smtp, services.MailpitDataDir())
+	}
+
+	mariadbInstances, err := services.InstalledMariaDBInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range mariadbInstances {
+		port := configPort(services.MariaDBConfigPathForInstance(instance.Version, instance.Instance), services.MariaDBDefaultPort)
+		add(databaseServiceName("mariadb", instance.Version, instance.Instance), instance.Unit, port, instance.DataDir)
+	}
+	mysqlInstances, err := services.InstalledMySQLInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range mysqlInstances {
+		port := configPort(services.MySQLConfigPathForInstance(instance.Version, instance.Instance), services.MySQLDefaultPort)
+		add(databaseServiceName("mysql", instance.Version, instance.Instance), instance.Unit, port, instance.DataDir)
+	}
+	postgresInstances, err := services.InstalledPostgresInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range postgresInstances {
+		port := configPort(services.PostgresConfigPathForInstance(instance.Version, instance.Instance), services.PostgresDefaultPort)
+		add(databaseServiceName("postgres", instance.Version, instance.Instance), instance.Unit, port, instance.DataDir)
+	}
+
+	meiliInstances, err := services.InstalledMeilisearchInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range meiliInstances {
+		port := unitFlagPort(instance.Unit, "--http-addr", services.MeilisearchDefaultPort)
+		add("meilisearch "+instance.Version, instance.Unit, port, instance.DataDir)
+	}
+	typesenseInstances, err := services.InstalledTypesenseInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range typesenseInstances {
+		port := unitFlagPort(instance.Unit, "--api-port", services.TypesenseDefaultPort)
+		add("typesense "+instance.Version, instance.Unit, port, instance.DataDir)
+	}
+	minioInstances, err := services.InstalledMinIOInstances()
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range minioInstances {
+		api := unitFlagPort(instance.Unit, "--address", services.MinIODefaultPort)
+		console := unitFlagPort(instance.Unit, "--console-address", services.MinIODefaultConsolePort)
+		add("minio "+instance.Version, instance.Unit, "api "+api+", console "+console, instance.DataDir)
+	}
+
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func serviceExists(unit, dataDir, configPath string) bool {
+	for _, path := range []string{
+		filepath.Join(paths.SystemdUserDir(), unit),
+		filepath.Join(paths.SystemdUserDir(), "default.target.wants", unit),
+		dataDir,
+		configPath,
+	} {
+		if path == "" {
+			continue
+		}
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func databaseServiceName(engine, version, instance string) string {
+	if instance == "" {
+		return engine + " " + version
+	}
+	return engine + " " + version + "/" + instance
+}
+
+func configPort(path, fallback string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fallback
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			fields := strings.Fields(line)
+			if len(fields) == 2 && fields[0] == "port" {
+				return strings.Trim(fields[1], `"'`)
+			}
+			continue
+		}
+		if strings.TrimSpace(key) == "port" {
+			return strings.Trim(strings.TrimSpace(value), `"'`)
+		}
+	}
+	return fallback
+}
+
+func unitFlagPort(unit, flag, fallback string) string {
+	data, err := os.ReadFile(filepath.Join(paths.SystemdUserDir(), unit))
+	if err != nil {
+		return fallback
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "ExecStart=") {
+			continue
+		}
+		fields := strings.Fields(strings.TrimPrefix(line, "ExecStart="))
+		for i := 0; i < len(fields)-1; i++ {
+			if fields[i] == flag {
+				return portFromAddr(fields[i+1], fallback)
+			}
+		}
+	}
+	return fallback
+}
+
+func portFromAddr(addr, fallback string) string {
+	addr = strings.Trim(addr, `"'`)
+	if addr == "" {
+		return fallback
+	}
+	if _, port, err := net.SplitHostPort(addr); err == nil {
+		return port
+	}
+	if i := strings.LastIndex(addr, ":"); i >= 0 && i < len(addr)-1 {
+		return addr[i+1:]
+	}
+	return addr
 }
 
 func openSite(name string) error {
@@ -359,6 +551,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case healthMsg:
 		m.health = healthState(msg)
 		return m, nil
+	case servicesMsg:
+		if msg.err != nil {
+			m.serviceErr = msg.err.Error()
+			return m, nil
+		}
+		m.services = msg.services
+		m.serviceErr = ""
+		m.fixServiceCursor()
+		return m, nil
 	case logPreviewMsg:
 		if msg.err == nil && msg.name != "" {
 			m.logs[msg.name] = msg.lines
@@ -373,7 +574,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.results = map[string]probeResult{}
 		m.docExists = checkDocs(m.sites)
-		return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected(), refreshTickCmd())
+		return m, tea.Batch(m.probeAll(), healthCmd(), servicesCmd(), m.logPreviewSelected(), refreshTickCmd())
 	case tea.KeyMsg:
 		if m.help {
 			switch msg.String() {
@@ -495,7 +696,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.results = map[string]probeResult{}
 			m.docExists = checkDocs(m.sites)
 			m.status = "refreshed"
-			return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+			return m, tea.Batch(m.probeAll(), healthCmd(), servicesCmd(), m.logPreviewSelected())
 		case "a":
 			m.auto = !m.auto
 			if m.auto {
@@ -521,6 +722,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.fixOffset()
 				return m, m.logPreviewSelected()
 			}
+		case "[":
+			m.moveServiceCursor(-1)
+		case "]":
+			m.moveServiceCursor(1)
+		case "v":
+			service := m.selectedService()
+			if service == nil {
+				m.status = "no optional services installed"
+				return m, nil
+			}
+			kind := serviceToggleAction(*service)
+			m.confirm = &confirmState{kind: kind, service: *service, text: serviceConfirmText(kind, *service)}
+		case "V":
+			service := m.selectedService()
+			if service == nil {
+				m.status = "no optional services installed"
+				return m, nil
+			}
+			m.confirm = &confirmState{kind: actionServiceRestart, service: *service, text: serviceConfirmText(actionServiceRestart, *service)}
 		case "u":
 			if sel := m.selected(); sel != nil {
 				if !m.isExplicitLink(sel.Name) {
@@ -608,6 +828,21 @@ func (m model) runConfirmedAction() (tea.Model, tea.Cmd) {
 			l.Secure = !l.Secure
 			return nil
 		})
+	case actionServiceStart, actionServiceStop, actionServiceRestart:
+		err = applyServiceAction(action.kind, action.service.Unit)
+		if err != nil {
+			m.status = err.Error()
+			return m, nil
+		}
+		m.status = serviceActionLabel(action.kind) + " " + action.service.Name
+		if services, err := collectOptionalServices(); err == nil {
+			m.services = services
+			m.serviceErr = ""
+			m.fixServiceCursor()
+		} else {
+			m.serviceErr = err.Error()
+		}
+		return m, tea.Batch(servicesCmd(), healthCmd())
 	}
 	if err != nil {
 		m.status = err.Error()
@@ -619,7 +854,95 @@ func (m model) runConfirmedAction() (tea.Model, tea.Cmd) {
 	}
 	m.results = map[string]probeResult{}
 	m.status = "updated " + action.site.Name + ".test"
-	return m, tea.Batch(m.probeAll(), healthCmd(), m.logPreviewSelected())
+	return m, tea.Batch(m.probeAll(), healthCmd(), servicesCmd(), m.logPreviewSelected())
+}
+
+func (m model) selectedService() *optionalService {
+	if len(m.services) == 0 {
+		return nil
+	}
+	i := m.serviceCur
+	if i < 0 {
+		i = 0
+	}
+	if i >= len(m.services) {
+		i = len(m.services) - 1
+	}
+	return &m.services[i]
+}
+
+func (m *model) moveServiceCursor(delta int) {
+	if len(m.services) == 0 {
+		m.status = "no optional services installed"
+		return
+	}
+	m.serviceCur += delta
+	if m.serviceCur < 0 {
+		m.serviceCur = len(m.services) - 1
+	}
+	if m.serviceCur >= len(m.services) {
+		m.serviceCur = 0
+	}
+	m.status = "service: " + m.services[m.serviceCur].Name
+}
+
+func (m *model) fixServiceCursor() {
+	if len(m.services) == 0 {
+		m.serviceCur = 0
+		return
+	}
+	if m.serviceCur < 0 {
+		m.serviceCur = 0
+	}
+	if m.serviceCur >= len(m.services) {
+		m.serviceCur = len(m.services) - 1
+	}
+}
+
+func serviceToggleAction(service optionalService) actionKind {
+	if service.Active {
+		return actionServiceStop
+	}
+	return actionServiceStart
+}
+
+func serviceConfirmText(kind actionKind, service optionalService) string {
+	switch kind {
+	case actionServiceStart:
+		return "start and enable " + service.Name
+	case actionServiceStop:
+		return "stop and disable " + service.Name
+	case actionServiceRestart:
+		return "restart " + service.Name
+	default:
+		return service.Name
+	}
+}
+
+func serviceActionLabel(kind actionKind) string {
+	switch kind {
+	case actionServiceStart:
+		return "started"
+	case actionServiceStop:
+		return "stopped"
+	case actionServiceRestart:
+		return "restarted"
+	default:
+		return "updated"
+	}
+}
+
+func applyServiceAction(kind actionKind, unit string) error {
+	switch kind {
+	case actionServiceStart:
+		return systemd.EnableNow(unit)
+	case actionServiceStop:
+		return systemd.DisableNow(unit)
+	case actionServiceRestart:
+		return systemd.RunSystemctl("--user", "restart", unit)
+	default:
+		return fmt.Errorf("unknown service action")
+	}
 }
 
 func (m model) commitRootEdit() (tea.Model, tea.Cmd) {
@@ -1035,6 +1358,8 @@ func (m model) View() string {
 		"! problems",
 		"z sort",
 		"space fold",
+		"[/] svc",
+		"v svc on/off",
 		"? help",
 		"r refresh",
 		"x clear",
@@ -1088,6 +1413,7 @@ func (m model) renderHelp() string {
 		"  a             toggle auto-refresh",
 		"  z             cycle sort mode",
 		"  space         collapse or expand the selected root",
+		"  [/]           select optional service",
 		"  /             search",
 		"  x             clear filters",
 		"  q             quit",
@@ -1103,6 +1429,8 @@ func (m model) renderHelp() string {
 		"  u             unlink selected explicit link",
 		"  S             toggle HTTPS for selected explicit link",
 		"  R             change or clear docroot override",
+		"  v             start/stop selected optional service",
+		"  V             restart selected optional service",
 		"",
 	}
 	return strings.Join([]string{m.renderBanner(), modalBox("HELP", lines[2:], m.width)}, "\n")
@@ -1305,6 +1633,7 @@ func (m model) renderInspector(width, height int) string {
 	if reasons := m.problemReasons(s); len(reasons) > 0 {
 		lines = append(lines, m.inspectorKV("problem", strings.Join(reasons, ", "), width))
 	}
+	lines = append(lines, m.renderServices(width)...)
 	if logLines := m.logs[s.Name]; len(logLines) > 0 {
 		lines = append(lines, "", headerStyle.Render(pad("LOGS", width)))
 		for _, line := range logLines {
@@ -1322,6 +1651,9 @@ func (m model) renderInspector(width, height int) string {
 		actionLine("space", "collapse group", width),
 		actionLine("!", "problems only", width),
 		actionLine("/", "search sites", width),
+		actionLineEnabled("[/]", "select service", width, len(m.services) > 0),
+		actionLineEnabled("v", "start/stop service", width, len(m.services) > 0),
+		actionLineEnabled("V", "restart service", width, len(m.services) > 0),
 		actionLineEnabled("u", "unlink", width, m.isExplicitLink(s.Name)),
 		actionLineEnabled("S", "toggle HTTPS", width, m.isExplicitLink(s.Name)),
 		actionLineEnabled("R", "change root", width, m.canChangeRoot(s)),
@@ -1330,6 +1662,50 @@ func (m model) renderInspector(width, height int) string {
 		lines = append(lines, actionLine("m", "show missing docroots", width))
 	}
 	return padLines(lines, width, height)
+}
+
+func (m model) renderServices(width int) []string {
+	lines := []string{"", headerStyle.Render(pad("OPTIONAL SERVICES", width))}
+	if m.serviceErr != "" {
+		return append(lines, errStyle.Render(truncate(m.serviceErr, width)))
+	}
+	if len(m.services) == 0 {
+		return append(lines, dimStyle.Render("none installed"))
+	}
+	limit := len(m.services)
+	if limit > 5 {
+		limit = 5
+	}
+	for _, service := range m.services[:limit] {
+		selected := false
+		if current := m.selectedService(); current != nil {
+			selected = current.Unit == service.Unit
+		}
+		prefixPlain := "  "
+		prefix := prefixPlain
+		if selected {
+			prefixPlain = "> "
+			prefix = cursorStyle.Render(prefixPlain)
+		}
+		stateText := "down"
+		stateStyle := warnStyle
+		if service.Active {
+			stateText = "up"
+			stateStyle = okStyle
+		}
+		nameWidth := width - lipgloss.Width(prefixPlain) - 5
+		if nameWidth < 1 {
+			nameWidth = 1
+		}
+		headPlain := prefixPlain + stateText + " " + service.Name + " " + service.Ports
+		head := prefix + stateStyle.Render(pad(stateText, 5)) + truncate(service.Name+" "+service.Ports, nameWidth)
+		lines = append(lines, padVisible(head, min(width, lipgloss.Width(headPlain))))
+		lines = append(lines, dimStyle.Render(truncate("  "+service.DataDir, width)))
+	}
+	if hidden := len(m.services) - limit; hidden > 0 {
+		lines = append(lines, dimStyle.Render(fmt.Sprintf("... %d more", hidden)))
+	}
+	return lines
 }
 
 func (m model) selectedItem() displayItem {
@@ -1740,6 +2116,11 @@ func Run() error {
 		collapsed: map[string]bool{},
 		docExists: checkDocs(sites),
 	}
+	if optionalServices, err := collectOptionalServices(); err == nil {
+		m.services = optionalServices
+	} else {
+		m.serviceErr = err.Error()
+	}
 	_, err = tea.NewProgram(m, tea.WithAltScreen()).Run()
 	return err
 }
@@ -1762,6 +2143,11 @@ func DebugRender(width int) string {
 		docExists: checkDocs(sites),
 		width:     width,
 		height:    40,
+	}
+	if optionalServices, err := collectOptionalServices(); err == nil {
+		m.services = optionalServices
+	} else {
+		m.serviceErr = err.Error()
 	}
 	return m.View()
 }

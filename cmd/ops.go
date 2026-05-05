@@ -52,7 +52,7 @@ var reloadCmd = &cobra.Command{
 
 var restartCmd = &cobra.Command{
 	Use:   "restart [unit]",
-	Short: "Restart routa services (no arg = all: dns + caddy + all php-fpm)",
+	Short: "Restart routa services (no arg = dns + caddy + php-fpm + active optional services)",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(_ *cobra.Command, args []string) error {
 		var units []string

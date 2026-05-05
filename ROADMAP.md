@@ -3,7 +3,39 @@
 Tracking release status and future work. Order within sections is rough
 priority, not commitment.
 
-## Shipped
+## Landed on main, pending release
+
+### Optional service dashboard actions
+
+- **TUI service visibility** — the dashboard inspector shows installed optional
+  services with configured ports, data directories, and active/inactive state.
+- **TUI service actions** — optional services can be selected in the dashboard
+  and started/stopped or restarted after confirmation.
+
+## Released
+
+### v1.6.0 — managed MySQL services and DB instances
+
+- **Managed MySQL runtime** — MySQL uses routa-owned Oracle MySQL archives under
+  `~/.local/share/routa/binaries/mysql/` and rejects MariaDB-compatible
+  `mysqld` binaries for `routa db ... mysql`.
+- **Named MySQL instances** — MySQL instances are isolated by version and
+  optional project name with their own data, config, sockets, and ports.
+- **Database credentials** — MySQL application credentials can be saved and
+  applied for installed or running instances.
+- **Service restart coverage** — `routa restart` includes active optional
+  services alongside DNS, Caddy, and PHP-FPM.
+
+### v1.5.0 — versioned optional services
+
+- **Versioned databases** — MariaDB and Postgres can be installed, started,
+  stopped, listed, and inspected as systemd user services.
+- **Search services** — Meilisearch and Typesense run as version-isolated
+  systemd user services with install/start/stop/status/list commands.
+- **Object storage** — MinIO runs as a version-isolated local S3-compatible
+  service with configurable API and console ports.
+- **Redis and Mailpit** — Redis and Mailpit user services remain the simple
+  single-instance service slices, with Mailpit optionally proxied as `.test`.
 
 ### v1.4.0 — aliases, tracked roots, and PHP env pools
 
@@ -108,27 +140,40 @@ trying to become a full-stack desktop dev suite.
 
 - **More routing edge coverage** — keep adding unusual tracked-dir, linked-site,
   proxy, dev-server, and path-combination cases as they appear.
-- **Managed services first slices** — Redis and Mailpit user services landed as
-  the proving ground for the service abstraction before databases.
+- **Optional service release pass** — cut the next release around the landed
+  TUI service visibility/actions once docs and command help are checked against
+  the implemented behavior.
+- **Service diagnostics** — extend `routa doctor` coverage for optional service
+  binaries, port conflicts, inactive units, and common missing-runtime cases.
 
 ## Mid-term
 
 - **Distribution**
   - AUR package (`routa-bin`) so Arch users `paru -S routa-bin`.
-- **Bundled services**
-  - **MariaDB / Postgres** — managed user systemd unit per version, ports
-    3306/5432, data under `~/.local/share/routa/db/`.
-  - **Redis** — single user-space instance. CLI slice is available as
-    `routa redis start/stop/restart/status`.
-  - **Mailpit** — SMTP catcher on :1025, web UI on :8025, optionally proxied
-    as `mail.test` with `routa mail proxy`.
-  - CLI shape: `routa db install mariadb 11`, `routa db start/stop/list`,
-    `routa mail start`. TUI panel for these.
+- **Optional service polish**
+  - Per-service proxy helpers where they make sense, such as search dashboards,
+    MinIO console, and named Mailpit inboxes.
+  - Consistent lifecycle output and list/status formatting across Redis,
+    Mailpit, databases, search, and storage.
+  - Backup/export guidance for stateful service data.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the
   compiled-in upstream bulk profile. Add finer-grained variant selection or
   custom static-php-cli builds for users who need a different extension set.
 - **Xdebug toggle** — install xdebug-enabled PHP variant alongside,
   `routa php xdebug on/off <ver>` flips the loaded ini.
+
+## Next logical steps
+
+1. **Cut the optional-service dashboard release** — this is the lowest-risk
+   milestone because the implementation and README are already in place.
+   Remaining work: commit and tag the release.
+2. **Extend `doctor` for optional services** — diagnose missing binaries,
+   occupied ports, failed units, and mismatched database runtimes before users
+   have to inspect systemd logs by hand.
+3. **Package for Arch** — once the service release lands, `routa-bin` becomes
+   the practical distribution step for the current target audience.
+4. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
+   and extension variants as a focused PHP developer-experience milestone.
 
 ## Backlog / ideas
 
