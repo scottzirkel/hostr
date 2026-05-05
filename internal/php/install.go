@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -189,6 +190,45 @@ func Install(ctx context.Context, r Release, out io.Writer) error {
 }
 
 func downloadAndExtract(ctx context.Context, url, destBin string, out io.Writer) error {
+	if out == nil {
+		out = io.Discard
+	}
+	const attempts = 3
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := downloadAndExtractOnce(ctx, url, destBin, out); err != nil {
+			lastErr = err
+			if ctx.Err() != nil || !retryableDownloadError(err) || attempt == attempts {
+				return err
+			}
+			_ = os.Remove(destBin)
+			fmt.Fprintf(out, "\n  retrying download (%d/%d): %v\n", attempt+1, attempts, err)
+			time.Sleep(time.Duration(attempt) * time.Second)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+type downloadStatusError struct {
+	URL  string
+	Code int
+}
+
+func (e downloadStatusError) Error() string {
+	return fmt.Sprintf("download %s: HTTP %d", e.URL, e.Code)
+}
+
+func retryableDownloadError(err error) bool {
+	var status downloadStatusError
+	if errors.As(err, &status) {
+		return status.Code == http.StatusRequestTimeout || status.Code == http.StatusTooManyRequests || status.Code >= 500
+	}
+	return true
+}
+
+func downloadAndExtractOnce(ctx context.Context, url, destBin string, out io.Writer) error {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
@@ -197,7 +237,7 @@ func downloadAndExtract(ctx context.Context, url, destBin string, out io.Writer)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("download %s: HTTP %d", url, resp.StatusCode)
+		return downloadStatusError{URL: url, Code: resp.StatusCode}
 	}
 
 	pr := &progressReader{r: resp.Body, total: resp.ContentLength, out: out}

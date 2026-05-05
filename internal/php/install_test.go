@@ -1,8 +1,17 @@
 package php
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,4 +88,78 @@ func TestSymlinksSkipsDanglingAliases(t *testing.T) {
 	if len(links) != 0 {
 		t.Fatalf("expected no valid links, got %#v", links)
 	}
+}
+
+func TestDownloadAndExtractRetriesInterruptedBody(t *testing.T) {
+	archive := testTarGz(t, "php binary")
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		w.Header().Set("Content-Type", "application/gzip")
+		if attempts == 1 {
+			w.Header().Set("Content-Length", "999999")
+			_, _ = w.Write(archive[:len(archive)/2])
+			return
+		}
+		w.Header().Set("Content-Length", fmt.Sprint(len(archive)))
+		_, _ = w.Write(archive)
+	}))
+	defer server.Close()
+
+	dest := filepath.Join(t.TempDir(), "php")
+	var out bytes.Buffer
+	if err := downloadAndExtract(context.Background(), server.URL, dest, &out); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	data, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "php binary" {
+		t.Fatalf("dest = %q", data)
+	}
+	if !strings.Contains(out.String(), "retrying download (2/3)") {
+		t.Fatalf("retry output missing:\n%s", out.String())
+	}
+}
+
+func TestDownloadAndExtractDoesNotRetryNotFound(t *testing.T) {
+	attempts := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempts++
+		http.NotFound(w, nil)
+	}))
+	defer server.Close()
+
+	err := downloadAndExtract(context.Background(), server.URL, filepath.Join(t.TempDir(), "php"), io.Discard)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
+func testTarGz(t *testing.T, content string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	body := []byte(content)
+	if err := tw.WriteHeader(&tar.Header{Name: "php", Mode: 0o755, Size: int64(len(body))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(body); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
 }
