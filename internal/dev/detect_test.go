@@ -103,6 +103,22 @@ func TestDetectNodeFallsThroughWithoutDevScript(t *testing.T) {
 	}
 }
 
+func TestDetectNodeDevScriptWinsOverFrameworkMarkers(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "package.json"), `{"scripts":{"dev":"vite --host 127.0.0.1"}}`)
+	write(t, filepath.Join(dir, "pnpm-lock.yaml"), "")
+	write(t, filepath.Join(dir, "Gemfile"), `gem "rails"`)
+	write(t, filepath.Join(dir, "manage.py"), "")
+
+	spec, err := Detect(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"pnpm", "run", "dev"}; spec.Kind != "node" || !reflect.DeepEqual(spec.Command, want) || spec.DefaultPort != 5173 {
+		t.Fatalf("spec = %#v, want node command %#v", spec, want)
+	}
+}
+
 func TestDetectRailsPrefersBinDev(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "Gemfile"), `gem "rails"`)

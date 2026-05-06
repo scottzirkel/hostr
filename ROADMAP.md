@@ -12,6 +12,8 @@ priority, not commitment.
   tracked children.
 - **Absolute link root coverage** — explicit links with absolute docroot
   overrides now have focused routing detection coverage.
+- **Dev-server detection coverage** — mixed projects with Node dev scripts and
+  other framework markers now have detector precedence coverage.
 
 ## Released
 
