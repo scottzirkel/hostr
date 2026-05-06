@@ -972,6 +972,38 @@ func TestWriteFragmentsRendersAliasSiteAsSeparateHost(t *testing.T) {
 	}
 }
 
+func TestWriteFragmentsRendersAliasChainAsSeparateHosts(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	docroot := filepath.Join(t.TempDir(), "public")
+	if err := os.MkdirAll(docroot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := (&State{
+		Links: []Link{{Name: "app", Path: filepath.Dir(docroot), Root: "public", Secure: true}},
+		Aliases: []Alias{
+			{Name: "api", Target: "app"},
+			{Name: "v1", Target: "api"},
+		},
+	}).Resolve()
+	if err := WriteFragments(resolved); err != nil {
+		t.Fatal(err)
+	}
+
+	content := readFragment(t, "v1")
+	for _, want := range []string{
+		"v1.test {",
+		"root * " + strconv.Quote(docroot),
+		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "v1.log")),
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rendered alias chain fragment missing %q:\n%s", want, content)
+		}
+	}
+}
+
 func TestWriteFragmentsRendersAliasWithDistinctEnvSocket(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())

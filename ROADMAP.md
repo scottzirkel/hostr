@@ -20,6 +20,8 @@ priority, not commitment.
   normalization now covers trimmed input and bracketed IPv6 targets.
 - **Proxy override coverage** — explicit proxy links now have focused coverage
   for overriding auto-discovered tracked filesystem sites.
+- **Alias-chain rendering coverage** — chained aliases now have focused Caddy
+  fragment coverage to ensure each hostname renders separately.
 
 ## Released
 
