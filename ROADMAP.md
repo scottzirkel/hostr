@@ -28,6 +28,9 @@ priority, not commitment.
   coverage for `dist/` taking precedence over later build output directories.
 - **PHP public docroot priority coverage** — mixed `public/index.php` and
   `public/index.html` projects now have focused PHP detection coverage.
+- **Dev-server port parsing** — `routa dev` now avoids mistaking URL scheme
+  prefixes for ports, with coverage for common localhost URLs and ignored
+  out-of-range ports.
 
 ## Released
 

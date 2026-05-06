@@ -157,15 +157,19 @@ func registerDevProxy(name, target string) error {
 	return commitAndReload(s, fmt.Sprintf("proxy %s.test → %s", name, target))
 }
 
-var portRE = regexp.MustCompile(`(?i)(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|:)\D*([1-9][0-9]{1,4})`)
+var portRE = regexp.MustCompile(`(?i)(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?:[^\d\n]*):([1-9][0-9]{1,4})|(?:^|\s):([1-9][0-9]{1,4})`)
 
 func streamDevOutput(src io.Reader, dst *os.File, ports chan<- int) {
 	scanner := bufio.NewScanner(src)
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Fprintln(dst, line)
-		if m := portRE.FindStringSubmatch(line); len(m) == 2 {
-			if p, err := strconv.Atoi(m[1]); err == nil && p <= 65535 {
+		if m := portRE.FindStringSubmatch(line); len(m) == 3 {
+			portText := m[1]
+			if portText == "" {
+				portText = m[2]
+			}
+			if p, err := strconv.Atoi(portText); err == nil && p <= 65535 {
 				select {
 				case ports <- p:
 				default:
