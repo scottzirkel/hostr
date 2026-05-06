@@ -17,6 +17,7 @@ func TestStreamDevOutputDetectsCommonLocalURLs(t *testing.T) {
 	input := strings.Join([]string{
 		"Local:   http://localhost:5173/",
 		"Network: http://127.0.0.1:3000/dashboard",
+		"Listening on http://0.0.0.0:8080",
 		"IPv6:    http://[::1]:4000/",
 		"ignored: http://localhost:65536/",
 	}, "\n")
@@ -28,7 +29,7 @@ func TestStreamDevOutputDetectsCommonLocalURLs(t *testing.T) {
 	for port := range ports {
 		got = append(got, port)
 	}
-	want := []int{5173, 3000, 4000}
+	want := []int{5173, 3000, 8080, 4000}
 	if len(got) != len(want) {
 		t.Fatalf("ports = %#v, want %#v", got, want)
 	}
