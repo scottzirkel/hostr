@@ -22,6 +22,8 @@ priority, not commitment.
   for overriding auto-discovered tracked filesystem sites.
 - **Alias-chain rendering coverage** — chained aliases now have focused Caddy
   fragment coverage to ensure each hostname renders separately.
+- **Static docroot priority coverage** — site detection now has focused coverage
+  for `public/` taking precedence over built static output directories.
 
 ## Released
 

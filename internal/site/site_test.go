@@ -692,6 +692,12 @@ func TestDetectSiteHeuristics(t *testing.T) {
 			wantDocroot: "public",
 		},
 		{
+			name:        "public static wins over built static output",
+			files:       []string{"public/index.html", "dist/index.html"},
+			wantKind:    KindStatic,
+			wantDocroot: "public",
+		},
+		{
 			name:        "root static",
 			files:       []string{"index.html"},
 			wantKind:    KindStatic,
