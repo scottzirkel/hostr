@@ -1068,6 +1068,31 @@ func TestResolvePathReturnsLongestMatchingSitePath(t *testing.T) {
 	}
 }
 
+func TestResolvePathDoesNotMatchSiblingPathPrefixes(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "app")
+	sibling := filepath.Join(root, "app-old")
+	for _, dir := range []string{project, sibling} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	state := &State{
+		Links: []Link{{Name: "app", Path: project, Secure: true}},
+	}
+
+	rootMatches := state.ResolvePath(project)
+	if len(rootMatches) != 1 || rootMatches[0].Name != "app" {
+		t.Fatalf("site root should match app: %#v", rootMatches)
+	}
+
+	siblingMatches := state.ResolvePath(sibling)
+	if len(siblingMatches) != 0 {
+		t.Fatalf("sibling with path prefix should not match app: %#v", siblingMatches)
+	}
+}
+
 func TestResolvePathReturnsConcreteAndAliasMatchesButSkipsProxies(t *testing.T) {
 	project := filepath.Join(t.TempDir(), "project")
 	if err := os.MkdirAll(filepath.Join(project, "subdir"), 0o755); err != nil {
