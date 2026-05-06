@@ -267,8 +267,11 @@ func TestNormalizeProxyTarget(t *testing.T) {
 		wantErr string
 	}{
 		{name: "bare port", input: "5173", want: "127.0.0.1:5173"},
+		{name: "trimmed bare port", input: " 5173 ", want: "127.0.0.1:5173"},
 		{name: "leading colon", input: ":5173", want: "127.0.0.1:5173"},
 		{name: "host and port", input: "localhost:5173", want: "localhost:5173"},
+		{name: "trimmed host and port", input: " localhost:5173 ", want: "localhost:5173"},
+		{name: "bracketed ipv6 host and port", input: "[::1]:5173", want: "[::1]:5173"},
 		{name: "invalid port", input: "nope", wantErr: "port must be 1-65535"},
 		{name: "invalid zero port", input: ":0", wantErr: "port must be 1-65535"},
 	}

@@ -16,6 +16,8 @@ priority, not commitment.
   other framework markers now have detector precedence coverage.
 - **Proxy alias rendering coverage** — aliases that target proxy sites now have
   focused Caddy fragment rendering coverage.
+- **Proxy target normalization coverage** — command-level proxy target
+  normalization now covers trimmed input and bracketed IPv6 targets.
 
 ## Released
 
