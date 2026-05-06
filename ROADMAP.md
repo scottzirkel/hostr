@@ -14,6 +14,8 @@ priority, not commitment.
   overrides now have focused routing detection coverage.
 - **Dev-server detection coverage** — mixed projects with Node dev scripts and
   other framework markers now have detector precedence coverage.
+- **Proxy alias rendering coverage** — aliases that target proxy sites now have
+  focused Caddy fragment rendering coverage.
 
 ## Released
 

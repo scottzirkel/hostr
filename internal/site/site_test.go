@@ -983,6 +983,36 @@ func TestWriteFragmentsRendersAliasWithDistinctEnvSocket(t *testing.T) {
 	}
 }
 
+func TestWriteFragmentsRendersProxyAlias(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	resolved := (&State{
+		Links:   []Link{{Name: "vite", Target: "127.0.0.1:5173", Secure: true}},
+		Aliases: []Alias{{Name: "frontend", Target: "vite"}},
+	}).Resolve()
+	if err := WriteFragments(resolved); err != nil {
+		t.Fatal(err)
+	}
+
+	content := readFragment(t, "frontend")
+	for _, want := range []string{
+		"frontend.test {",
+		"tls internal",
+		"reverse_proxy " + strconv.Quote("127.0.0.1:5173"),
+		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "frontend.log")),
+	} {
+		if !strings.Contains(content, want) {
+			t.Fatalf("rendered proxy alias fragment missing %q:\n%s", want, content)
+		}
+	}
+	for _, unwanted := range []string{"root *", "file_server", "php_fastcgi"} {
+		if strings.Contains(content, unwanted) {
+			t.Fatalf("proxy alias fragment should not include %q:\n%s", unwanted, content)
+		}
+	}
+}
+
 func TestWriteFragmentsRejectsInvalidProxyTarget(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
