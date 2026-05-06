@@ -10,6 +10,8 @@ priority, not commitment.
 - **Routing path resolution coverage** — focused tests now cover path
   resolution precedence between broader linked parents and auto-discovered
   tracked children.
+- **Absolute link root coverage** — explicit links with absolute docroot
+  overrides now have focused routing detection coverage.
 
 ## Released
 

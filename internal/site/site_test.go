@@ -510,6 +510,31 @@ func TestResolveAbsoluteParkedRootUsesSameDocrootForEveryChild(t *testing.T) {
 	}
 }
 
+func TestResolveAbsoluteLinkRootUsesProvidedDocroot(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	docroot := filepath.Join(root, "shared-public")
+	for _, dir := range []string{project, docroot} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(docroot, "index.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := (&State{
+		DefaultPHP: "8.4",
+		Links:      []Link{{Name: "app", Path: project, Root: docroot, Secure: true}},
+	}).Resolve()
+	if len(resolved) != 1 {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if got := resolved[0]; got.Kind != KindPHP || got.Path != project || got.Docroot != docroot || got.PHP != "8.4" {
+		t.Fatalf("absolute link root = %#v", got)
+	}
+}
+
 func TestResolveLowercaseNameCollisionUsesLaterDirectoryEntry(t *testing.T) {
 	parked := t.TempDir()
 	upper := filepath.Join(parked, "App")
