@@ -33,6 +33,8 @@ priority, not commitment.
   addresses, and ignored out-of-range ports.
 - **Mailpit status output** — `routa mail status` now prints configured web and
   SMTP listen addresses before the underlying systemd status.
+- **Search status output** — `routa search status` now prints the configured
+  listen address before the underlying systemd status.
 
 ## Released
 

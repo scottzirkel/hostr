@@ -56,6 +56,33 @@ func TestSearchProxyLinkUsesConfiguredPort(t *testing.T) {
 	}
 }
 
+func TestSearchConfiguredPortReadsTypesenseUnit(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.TypesenseUnitName("28"))
+	writeTestFile(t, unitPath, "[Service]\nExecStart=/usr/bin/typesense-server --api-port 8109 --data-dir /tmp/typesense\n")
+
+	port, err := searchConfiguredPort("typesense", "28")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port != "8109" {
+		t.Fatalf("port = %q", port)
+	}
+}
+
+func TestSearchStatusHeaderIncludesListenAddr(t *testing.T) {
+	got := searchStatusHeader(services.MeilisearchUnitName("1.12"), "7701")
+	for _, want := range []string{
+		services.MeilisearchUnitName("1.12"),
+		"127.0.0.1:7701",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("header missing %q: %s", want, got)
+		}
+	}
+}
+
 func TestSearchListShowsInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

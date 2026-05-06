@@ -81,8 +81,15 @@ var searchStatusCmd = &cobra.Command{
 	Use:   "status <engine> <version>",
 	Short: "Show routa search service systemd status",
 	Args:  searchEngineVersionArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
-		return systemd.RunSystemctl("--user", "status", searchUnitName(args[0], args[1]))
+	RunE: func(cmd *cobra.Command, args []string) error {
+		engine, version := args[0], args[1]
+		port, err := searchConfiguredPort(engine, version)
+		if err != nil {
+			return err
+		}
+		unit := searchUnitName(engine, version)
+		fmt.Fprintln(cmd.OutOrStdout(), searchStatusHeader(unit, port))
+		return systemd.RunSystemctl("--user", "status", unit)
 	},
 }
 
@@ -239,6 +246,10 @@ func searchConfiguredPort(engine, version string) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported search engine %q (supported: meilisearch, typesense)", engine)
 	}
+}
+
+func searchStatusHeader(unit, port string) string {
+	return fmt.Sprintf("%s listens on %s", unit, localhostAddr(port))
 }
 
 func init() {
