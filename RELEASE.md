@@ -86,6 +86,7 @@ The initial release line was reconstructed from the first commits:
 - `v1.6.0`: routa-managed MySQL runtime installation, named MySQL database instances, application credentials, runtime dependency diagnostics, and active optional-service restarts.
 - `v1.7.0`: optional service dashboard visibility and start/stop/restart actions.
 - `v1.8.0`: optional service diagnostics, Linux release artifacts, AUR metadata, PHP Xdebug toggles, optional service proxy helpers, PHP-FPM restart aliases, retrying PHP downloads, and safer PHP-FPM env rendering.
+- `v1.8.1`: PHP public front-controller detection no longer requires `composer.json`, so non-Composer apps with `public/index.php` resolve as PHP sites.
 
 ## Pending Release Notes
 

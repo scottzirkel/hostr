@@ -9,6 +9,12 @@ priority, not commitment.
 
 ## Released
 
+### v1.8.1 — PHP public docroot detection
+
+- **PHP public front controllers** — site auto-detection now treats
+  `public/index.php` as a PHP docroot without requiring `composer.json`,
+  covering non-Composer PHP apps and custom front-controller layouts.
+
 ### v1.8.0 — diagnostics, PHP tooling, and Arch packaging
 
 - **Optional service diagnostics** — `routa doctor` adds detail for optional
