@@ -84,21 +84,11 @@ The initial release line was reconstructed from the first commits:
 - `v1.4.0`: site aliases with `routa alias`/`unalias`, tracked-dir root overrides with `routa track --root`, per-site PHP `.env` passthrough through generated PHP-FPM pools, and expanded routing edge coverage.
 - `v1.5.0`: versioned optional services for Redis, Mailpit, MariaDB, Postgres, Meilisearch, Typesense, and MinIO with systemd user units and isolated data directories.
 - `v1.6.0`: routa-managed MySQL runtime installation, named MySQL database instances, application credentials, runtime dependency diagnostics, and active optional-service restarts.
+- `v1.7.0`: optional service dashboard visibility and start/stop/restart actions.
+- `v1.8.0`: optional service diagnostics, Linux release artifacts, AUR metadata, PHP Xdebug toggles, optional service proxy helpers, PHP-FPM restart aliases, retrying PHP downloads, and safer PHP-FPM env rendering.
 
 ## Pending Release Notes
 
-### Next — diagnostics and packaging
+### Next
 
-- Extend `routa doctor` optional-service diagnostics for missing binaries,
-  occupied ports, failed units, runtime libraries, and mismatched database
-  runtimes.
-- Add Linux release artifact builds for `amd64` and `arm64`.
-- Add AUR `routa-bin` package metadata and publishing notes.
-- Add `routa php xdebug on/off/status <version>` for per-version Xdebug ini
-  toggles when the installed PHP build includes Xdebug.
-- Default Xdebug-capable PHP installs to `xdebug.mode=off` immediately after
-  installation.
-- Add proxy helpers for Meilisearch, Typesense, and the MinIO console.
-- Add `routa restart php [version]` aliases for PHP-FPM lifecycle management.
-- Quote PHP-FPM pool env values so Laravel `.env` values containing `=`, `$`,
-  quotes, spaces, or empty entries do not break generated FPM configs.
+- None.

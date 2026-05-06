@@ -5,6 +5,12 @@ priority, not commitment.
 
 ## Pending release
 
+- None.
+
+## Released
+
+### v1.8.0 — diagnostics, PHP tooling, and Arch packaging
+
 - **Optional service diagnostics** — `routa doctor` adds detail for optional
   services with missing binaries, occupied ports, failed units, runtime library
   failures, and mismatched database runtimes.
@@ -16,8 +22,10 @@ priority, not commitment.
   and Xdebug-capable installs default to off.
 - **Optional service proxy helpers** — search services and MinIO console can be
   registered as `.test` proxies with service-aware default ports.
-
-## Released
+- **PHP-FPM reliability** — PHP downloads retry interrupted transfers,
+  `routa restart php [version]` targets PHP-FPM directly, generated FPM env
+  values are quoted safely, and `.env` references such as
+  `${FORWARD_REDIS_PORT}` expand before pool config rendering.
 
 ### v1.7.0 — optional service dashboard actions
 

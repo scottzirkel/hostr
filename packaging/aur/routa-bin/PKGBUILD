@@ -1,6 +1,6 @@
 # Maintainer: routa maintainers
 pkgname=routa-bin
-pkgver=1.7.0
+pkgver=1.8.0
 pkgrel=1
 pkgdesc='Linux local-development server for PHP, static, and proxied dev-server projects under .test domains'
 arch=('x86_64' 'aarch64')
