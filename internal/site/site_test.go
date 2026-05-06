@@ -195,6 +195,29 @@ func TestResolveExplicitLinkOverridesParkedRoot(t *testing.T) {
 	}
 }
 
+func TestResolveExplicitProxyOverridesTrackedSite(t *testing.T) {
+	parked := t.TempDir()
+	app := filepath.Join(parked, "app", "public")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app, "index.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resolved := (&State{
+		Parked: []string{parked},
+		Links:  []Link{{Name: "app", Target: "127.0.0.1:5173", Secure: true}},
+	}).Resolve()
+
+	if len(resolved) != 1 {
+		t.Fatalf("resolved = %#v", resolved)
+	}
+	if got := resolved[0]; got.Kind != KindProxy || got.Target != "127.0.0.1:5173" || got.Path != "" || got.Docroot != "" {
+		t.Fatalf("explicit proxy should override tracked filesystem site: %#v", got)
+	}
+}
+
 func TestResolveSkipsIgnoredParkedSitesButAllowsExplicitLinks(t *testing.T) {
 	parked := t.TempDir()
 	for _, dir := range []string{"ignored", "visible"} {

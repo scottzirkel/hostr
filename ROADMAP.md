@@ -18,6 +18,8 @@ priority, not commitment.
   focused Caddy fragment rendering coverage.
 - **Proxy target normalization coverage** — command-level proxy target
   normalization now covers trimmed input and bracketed IPv6 targets.
+- **Proxy override coverage** — explicit proxy links now have focused coverage
+  for overriding auto-discovered tracked filesystem sites.
 
 ## Released
 
