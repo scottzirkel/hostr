@@ -269,6 +269,36 @@ routa proxy myapp 5173          # myapp.test → 127.0.0.1:5173, with HTTPS + We
 Targets accept `5173` (assumed `127.0.0.1:5173`), `:5173`, or `host:5173`. Caddy auto-handles
 WebSocket upgrades, so HMR works.
 
+### Vite TLS certificates
+
+Vite integrations that auto-detect local TLS often look in Valet or Herd
+certificate directories. routa uses Caddy's local CA instead, so point Vite at
+the Caddy-issued certificate for your `.test` host:
+
+```js
+import fs from 'node:fs'
+import { homedir } from 'node:os'
+import { defineConfig } from 'vite'
+
+const host = 'myapp.test'
+const certDir = `${homedir()}/.local/share/caddy/certificates/local/${host}`
+
+export default defineConfig({
+  server: {
+    host,
+    hmr: { host },
+    https: {
+      key: fs.readFileSync(`${certDir}/${host}.key`),
+      cert: fs.readFileSync(`${certDir}/${host}.crt`),
+    },
+  },
+})
+```
+
+The Caddy root certificate lives at
+`~/.local/share/caddy/pki/authorities/local/root.crt` and is installed into the
+system trust store by `routa install`.
+
 ## Running dev servers
 
 For process-backed apps, `routa dev` starts the app's normal dev server, waits
