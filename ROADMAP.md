@@ -31,6 +31,8 @@ priority, not commitment.
 - **Dev-server port parsing** — `routa dev` now avoids mistaking URL scheme
   prefixes for ports, with coverage for common localhost URLs, wildcard bind
   addresses, and ignored out-of-range ports.
+- **Mailpit status output** — `routa mail status` now prints configured web and
+  SMTP listen addresses before the underlying systemd status.
 
 ## Released
 

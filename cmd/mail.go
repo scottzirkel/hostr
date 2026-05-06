@@ -80,7 +80,12 @@ var mailRestartCmd = &cobra.Command{
 var mailStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show routa-mailpit systemd status",
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		webPort, smtpPort, err := mailpitConfiguredPorts()
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), mailpitStatusHeader(webPort, smtpPort))
 		return systemd.RunSystemctl("--user", "status", services.MailpitUnitName)
 	},
 }
@@ -141,6 +146,24 @@ func mailpitPortsFromCommand(cmd *cobra.Command, args []string, webPort, smtpPor
 		return "", "", err
 	}
 	return webPort, smtpPort, nil
+}
+
+func mailpitConfiguredPorts() (string, string, error) {
+	webPort, smtpPort, err := mailpitPorts("", "")
+	if err != nil {
+		return "", "", err
+	}
+	content, err := readRoutaUnit(services.MailpitUnitName)
+	if err != nil {
+		return webPort, smtpPort, nil
+	}
+	webPort = routaUnitFlagPort(content, "--listen", webPort)
+	smtpPort = routaUnitFlagPort(content, "--smtp", smtpPort)
+	return webPort, smtpPort, nil
+}
+
+func mailpitStatusHeader(webPort, smtpPort string) string {
+	return fmt.Sprintf("%s listens on web %s and SMTP %s", services.MailpitUnitName, localhostAddr(webPort), localhostAddr(smtpPort))
 }
 
 func init() {

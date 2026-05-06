@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/services"
 )
 
@@ -35,5 +38,34 @@ func TestMailpitPortsFromCommandAcceptsOnAlias(t *testing.T) {
 	}
 	if webPort != "8026" || smtpPort != "1026" {
 		t.Fatalf("ports = %q, %q", webPort, smtpPort)
+	}
+}
+
+func TestMailpitConfiguredPortsReadCustomUnit(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	unit := `[Service]
+ExecStart=/usr/bin/mailpit --listen 127.0.0.1:8026 --smtp 127.0.0.1:1026 --database /tmp/mailpit.db
+`
+	writeFile(t, filepath.Join(paths.SystemdUserDir(), services.MailpitUnitName), unit)
+
+	webPort, smtpPort, err := mailpitConfiguredPorts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if webPort != "8026" || smtpPort != "1026" {
+		t.Fatalf("ports = %q, %q", webPort, smtpPort)
+	}
+}
+
+func TestMailpitStatusHeaderIncludesWebAndSMTPAddrs(t *testing.T) {
+	got := mailpitStatusHeader("8026", "1026")
+	for _, want := range []string{
+		services.MailpitUnitName,
+		"web 127.0.0.1:8026",
+		"SMTP 127.0.0.1:1026",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("header missing %q: %s", want, got)
+		}
 	}
 }
