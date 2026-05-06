@@ -24,6 +24,8 @@ priority, not commitment.
   fragment coverage to ensure each hostname renders separately.
 - **Static docroot priority coverage** — site detection now has focused coverage
   for `public/` taking precedence over built static output directories.
+- **Static build-output priority coverage** — site detection now has focused
+  coverage for `dist/` taking precedence over later build output directories.
 
 ## Released
 
