@@ -26,6 +26,8 @@ priority, not commitment.
   for `public/` taking precedence over built static output directories.
 - **Static build-output priority coverage** — site detection now has focused
   coverage for `dist/` taking precedence over later build output directories.
+- **PHP public docroot priority coverage** — mixed `public/index.php` and
+  `public/index.html` projects now have focused PHP detection coverage.
 
 ## Released
 

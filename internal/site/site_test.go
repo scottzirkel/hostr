@@ -674,6 +674,12 @@ func TestDetectSiteHeuristics(t *testing.T) {
 			wantDocroot: "public",
 		},
 		{
+			name:        "public php wins over public static index",
+			files:       []string{"public/index.php", "public/index.html"},
+			wantKind:    KindPHP,
+			wantDocroot: "public",
+		},
+		{
 			name:        "plain php at root",
 			files:       []string{"index.php"},
 			wantKind:    KindPHP,
