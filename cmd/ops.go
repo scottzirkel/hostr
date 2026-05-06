@@ -337,7 +337,7 @@ type doctorProbeResult struct {
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
-	Short: "End-to-end health check: services, ports, DNS, cutover phase (--probe also HEADs each site)",
+	Short: "End-to-end health check: services, ports, DNS, cutover state (--probe also HEADs each site)",
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		report, err := collectDoctorReport(doctorProbe)
 		if err != nil {
@@ -948,12 +948,12 @@ func caddyAddrLabel(std, alt bool, caddyActive bool) string {
 		if !caddyActive {
 			return "127.0.0.1:443  (bound while routa-caddy is not active; another process may own standard HTTPS)"
 		}
-		return "127.0.0.1:443  (Phase 2)"
+		return "127.0.0.1:443  (standard HTTPS)"
 	case alt:
 		if !caddyActive {
 			return "127.0.0.1:8443  (bound while routa-caddy is not active; another process may own routa's alt HTTPS)"
 		}
-		return "127.0.0.1:8443  (Phase 1)"
+		return "127.0.0.1:8443  (alternate HTTPS)"
 	}
 	if caddyActive {
 		return "(not bound; routa-caddy is active, check Caddy logs)"
@@ -964,9 +964,9 @@ func caddyAddrLabel(std, alt bool, caddyActive bool) string {
 func phaseLabel(p cutover.Phase) string {
 	switch p {
 	case cutover.PhaseOne:
-		return "Phase 1 — routa on alt ports (run `routa cutover` to swap)"
+		return "Installed — routa on alternate ports (run `routa cutover` to swap)"
 	case cutover.PhaseTwo:
-		return "Phase 2 — routa owns standard ports + DNS routing"
+		return "Cut over — routa owns standard ports + DNS routing"
 	}
 	return "Partial — system in mixed state; re-run `routa cutover` or `--rollback` to converge"
 }

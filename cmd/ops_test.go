@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/scottzirkel/routa/internal/cutover"
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/services"
 	"github.com/scottzirkel/routa/internal/site"
@@ -22,7 +23,7 @@ func TestDoctorReportJSONShape(t *testing.T) {
 		},
 		Network: doctorNetwork{
 			CaddyAdmin: doctorEndpoint{Name: "caddy admin", OK: true, Detail: "127.0.0.1:2019 (up)"},
-			CaddyHTTPS: doctorEndpoint{Name: "caddy https", OK: true, Detail: "127.0.0.1:443 (Phase 2)"},
+			CaddyHTTPS: doctorEndpoint{Name: "caddy https", OK: true, Detail: "127.0.0.1:443 (standard HTTPS)"},
 			RoutaDNS:   doctorEndpoint{Name: "routa-dns", OK: true, Detail: "127.0.0.1:1053 (up)"},
 		},
 		DNS: doctorDNS{
@@ -33,7 +34,7 @@ func TestDoctorReportJSONShape(t *testing.T) {
 		},
 		Cutover: doctorCutover{
 			Phase: "phase_two",
-			Label: "Phase 2",
+			Label: "Cut over",
 		},
 	}
 
@@ -220,6 +221,19 @@ func TestCaddyAddrLabelReportsLikelyPortOwnerConflict(t *testing.T) {
 
 	if !strings.Contains(got, "another process may own standard HTTPS") {
 		t.Fatalf("label = %q", got)
+	}
+}
+
+func TestDoctorCutoverLabelsAvoidInternalPhaseWording(t *testing.T) {
+	for _, label := range []string{
+		caddyAddrLabel(true, false, true),
+		caddyAddrLabel(false, true, true),
+		phaseLabel(cutover.PhaseOne),
+		phaseLabel(cutover.PhaseTwo),
+	} {
+		if strings.Contains(label, "Phase") {
+			t.Fatalf("doctor label should not mention internal phase wording: %q", label)
+		}
 	}
 }
 

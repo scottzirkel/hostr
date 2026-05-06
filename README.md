@@ -114,7 +114,7 @@ routa version                   # print version, commit, build date
 ## Health checks
 
 `routa doctor` checks user services, Caddy ports, routa DNS, and the detected
-cutover phase. Add `--probe` to send a HEAD request to every configured site.
+cutover state. Add `--probe` to send a HEAD request to every configured site.
 
 For scripts and bug reports, `routa doctor --json` emits a stable top-level
 shape:
@@ -529,17 +529,17 @@ The per-link config goes in `/etc/systemd/network/<file>.d/routa.conf` (one per 
 Cutover requires at least one `/etc/systemd/network/*.network` file. `routa
 cutover` refuses to run its sudo block if no `.network` files exist, before
 changing resolver or port settings. If your machine uses NetworkManager without
-systemd-networkd `.network` files, stay on Phase 1 or add a networkd-managed
-link before running cutover.
+systemd-networkd `.network` files, keep routa on alternate ports or add a
+networkd-managed link before running cutover.
 
 ## Troubleshooting
 
-- **A site does not resolve:** run `routa doctor`. In Phase 1, query routa DNS
-  directly with `routa query app.test`; system-wide `.test` routing only happens
-  after `routa cutover`. `routa doctor` shows the DNS answer, expected answer,
-  and any raw query output when routa-dns does not return an A record.
+- **A site does not resolve:** run `routa doctor`. Before cutover, query routa
+  DNS directly with `routa query app.test`; system-wide `.test` routing only
+  happens after `routa cutover`. `routa doctor` shows the DNS answer, expected
+  answer, and any raw query output when routa-dns does not return an A record.
 - **Caddy is not on the expected port:** run `routa restart caddy` and then
-  `routa doctor`. If the cutover phase is partial, re-run `routa cutover` or
+  `routa doctor`. If the cutover state is partial, re-run `routa cutover` or
   `routa cutover --rollback` to converge. If HTTPS ports are bound while
   `routa-caddy` is inactive, `routa doctor` calls that out as a likely port
   ownership conflict.

@@ -5,7 +5,8 @@ priority, not commitment.
 
 ## Pending release
 
-- None.
+- **Doctor cutover wording** — `routa doctor` now reports cutover state using
+  user-facing descriptions instead of internal phase labels.
 
 ## Released
 
