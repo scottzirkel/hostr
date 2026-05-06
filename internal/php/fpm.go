@@ -174,6 +174,7 @@ func sitePoolsForSpec(spec string) ([]SitePool, error) {
 }
 
 var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var envRefRE = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)`)
 
 func LoadEnvFile(path string) ([]EnvSetting, error) {
 	f, err := os.Open(path)
@@ -205,6 +206,9 @@ func LoadEnvFile(path string) ([]EnvSetting, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+	for key, value := range env {
+		env[key] = expandEnvReferences(value, env, map[string]bool{key: true})
+	}
 
 	out := make([]EnvSetting, 0, len(env))
 	for key, value := range env {
@@ -222,6 +226,29 @@ func parseEnvValue(value string) string {
 		}
 	}
 	return strings.ReplaceAll(strings.ReplaceAll(value, "\r", ""), "\n", "")
+}
+
+func expandEnvReferences(value string, env map[string]string, seen map[string]bool) string {
+	return envRefRE.ReplaceAllStringFunc(value, func(match string) string {
+		parts := envRefRE.FindStringSubmatch(match)
+		key := parts[1]
+		if key == "" {
+			key = parts[2]
+		}
+		if seen[key] {
+			return match
+		}
+		if replacement, ok := env[key]; ok {
+			seen[key] = true
+			expanded := expandEnvReferences(replacement, env, seen)
+			delete(seen, key)
+			return expanded
+		}
+		if replacement, ok := os.LookupEnv(key); ok {
+			return replacement
+		}
+		return match
+	})
 }
 
 func fpmQuote(value string) string {

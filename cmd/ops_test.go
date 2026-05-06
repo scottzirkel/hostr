@@ -138,6 +138,35 @@ func TestRestartUnitsAcceptsPHPUnitAlias(t *testing.T) {
 	}
 }
 
+func TestRunningPHPUnitsIgnoresSitePoolSockets(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	runDir := paths.RunDir()
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{
+		"php-fpm-8.4.sock",
+		"php-fpm-8.4-app.sock",
+		"php-fpm-8.4.20.sock",
+		"php-fpm-8.4.20-api.sock",
+	} {
+		f, err := os.Create(filepath.Join(runDir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := runningPHPUnits()
+	want := []string{"routa-php@8.4.20.service", "routa-php@8.4.service"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("runningPHPUnits() = %#v, want %#v", got, want)
+	}
+}
+
 func TestOptionalServiceDoctorDetailReportsMissingBinaryAndPortConflict(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

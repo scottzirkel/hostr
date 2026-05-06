@@ -460,6 +460,7 @@ type optionalServiceDoctorPort struct {
 var (
 	doctorSharedLibraryRE = regexp.MustCompile(`error while loading shared libraries: ([^:]+):`)
 	doctorVersionRE       = regexp.MustCompile(`[0-9]+(?:\.[0-9]+)*`)
+	phpFPMUnitSocketRE    = regexp.MustCompile(`^php-fpm-([0-9]+\.[0-9]+(?:\.[0-9]+)?)\.sock$`)
 )
 
 func optionalServiceDoctorDetail(unit string, active bool, status string) string {
@@ -831,7 +832,11 @@ func runningPHPUnits() []string {
 	var out []string
 	for _, s := range socks {
 		base := filepath.Base(s)
-		spec := strings.TrimSuffix(strings.TrimPrefix(base, "php-fpm-"), ".sock")
+		match := phpFPMUnitSocketRE.FindStringSubmatch(base)
+		if match == nil {
+			continue
+		}
+		spec := match[1]
 		out = append(out, "routa-php@"+spec+".service")
 	}
 	return out

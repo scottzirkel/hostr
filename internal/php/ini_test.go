@@ -164,7 +164,7 @@ func TestWriteFPMConfigQuotesEnvValues(t *testing.T) {
 	for _, want := range []string{
 		`env[APP_KEY] = "base64:abc="`,
 		`env[APP_NAME] = "Routa \\\"Local\\\""`,
-		`env[MAIL_FROM_NAME] = "\${APP_NAME}"`,
+		`env[MAIL_FROM_NAME] = "Routa \\\"Local\\\""`,
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf("rendered config missing %q:\n%s", want, content)
@@ -193,6 +193,28 @@ func TestLoadEnvFileParsesAndSortsSettings(t *testing.T) {
 		if env[i] != want[i] {
 			t.Fatalf("env[%d] = %#v, want %#v", i, env[i], want[i])
 		}
+	}
+}
+
+func TestLoadEnvFileExpandsReferences(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".env")
+	if err := os.WriteFile(path, []byte("FORWARD_REDIS_PORT=6380\nREDIS_PORT=\"${FORWARD_REDIS_PORT}\"\nUNKNOWN=${NOT_DEFINED}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	env, err := LoadEnvFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, setting := range env {
+		got[setting.Key] = setting.Value
+	}
+	if got["REDIS_PORT"] != "6380" {
+		t.Fatalf("REDIS_PORT = %q, want 6380", got["REDIS_PORT"])
+	}
+	if got["UNKNOWN"] != "${NOT_DEFINED}" {
+		t.Fatalf("UNKNOWN = %q, want preserved reference", got["UNKNOWN"])
 	}
 }
 
