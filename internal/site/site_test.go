@@ -1068,6 +1068,30 @@ func TestResolvePathReturnsLongestMatchingSitePath(t *testing.T) {
 	}
 }
 
+func TestResolvePathPrefersTrackedChildOverLinkedParent(t *testing.T) {
+	root := t.TempDir()
+	tracked := filepath.Join(root, "tracked")
+	child := filepath.Join(tracked, "api")
+	if err := os.MkdirAll(filepath.Join(child, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	state := &State{
+		Parked: []string{tracked},
+		Links:  []Link{{Name: "workspace", Path: tracked, Secure: true}},
+	}
+
+	parentMatches := state.ResolvePath(tracked)
+	if len(parentMatches) != 1 || parentMatches[0].Name != "workspace" {
+		t.Fatalf("tracked root should match linked parent: %#v", parentMatches)
+	}
+
+	childMatches := state.ResolvePath(filepath.Join(child, "nested"))
+	if len(childMatches) != 1 || childMatches[0].Name != "api" {
+		t.Fatalf("tracked child should win over linked parent: %#v", childMatches)
+	}
+}
+
 func TestResolvePathDoesNotMatchSiblingPathPrefixes(t *testing.T) {
 	root := t.TempDir()
 	project := filepath.Join(root, "app")

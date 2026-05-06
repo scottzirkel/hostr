@@ -7,6 +7,9 @@ priority, not commitment.
 
 - **Doctor cutover wording** — `routa doctor` now reports cutover state using
   user-facing descriptions instead of internal phase labels.
+- **Routing path resolution coverage** — focused tests now cover path
+  resolution precedence between broader linked parents and auto-discovered
+  tracked children.
 
 ## Released
 
