@@ -212,7 +212,7 @@ not include Xdebug; routa will skip Xdebug ini defaults for those builds.
 
 ## Custom docroot
 
-Auto-detection picks Laravel's `public/`, static `public/`, then
+Auto-detection picks PHP `public/`, PHP at the root, static `public/`, then
 `dist/`/`out/`/`build/`/`_site/`, then the dir itself. Override when the
 heuristic gets it wrong:
 

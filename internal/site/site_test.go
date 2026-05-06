@@ -620,6 +620,12 @@ func TestDetectSiteHeuristics(t *testing.T) {
 			wantDocroot: "public",
 		},
 		{
+			name:        "public php front controller without composer",
+			files:       []string{"public/index.php"},
+			wantKind:    KindPHP,
+			wantDocroot: "public",
+		},
+		{
 			name:        "plain php at root",
 			files:       []string{"index.php"},
 			wantKind:    KindPHP,

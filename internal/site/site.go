@@ -304,15 +304,14 @@ func build(name, path, root, target, php string, secure bool, defaultPHP string)
 
 // detect picks the docroot and kind for a site directory.
 // Heuristic order, from most specific to least:
-//  1. Laravel: composer.json + public/index.php → PHP, docroot = public
+//  1. PHP public front controller: public/index.php → PHP, docroot = public
 //  2. Plain PHP at root: index.php → PHP, docroot = root
 //  3. Public static output: public/index.html → static, docroot = public
 //  4. Built static output: dist/ | out/ | build/ | _site/ with index.html → static
 //  5. Static at root: index.html → static, docroot = root
 //  6. Fallback: serve the directory itself (file_server may 404 if empty)
 func detect(path string) (Kind, string) {
-	if exists(filepath.Join(path, "composer.json")) &&
-		exists(filepath.Join(path, "public", "index.php")) {
+	if exists(filepath.Join(path, "public", "index.php")) {
 		return KindPHP, filepath.Join(path, "public")
 	}
 	if exists(filepath.Join(path, "index.php")) {
