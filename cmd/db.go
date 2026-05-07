@@ -143,16 +143,16 @@ var dbListCmd = &cobra.Command{
 			fmt.Fprintln(cmd.OutOrStdout(), "no database services installed. `routa db install mariadb <version>`, `routa db install mysql <version>`, or `routa db install postgres <version>`")
 			return nil
 		}
-		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "ENGINE\tVERSION\tINSTANCE\tUNIT\tDATA_DIR")
+		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 4, ' ', 0)
+		fmt.Fprintln(w, "ENGINE\tVERSION\tINSTANCE\tPORT")
 		for _, instance := range mariadbInstances {
-			fmt.Fprintf(w, "mariadb\t%s\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Unit, instance.DataDir)
+			fmt.Fprintf(w, "mariadb\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Port)
 		}
 		for _, instance := range mysqlInstances {
-			fmt.Fprintf(w, "mysql\t%s\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Unit, instance.DataDir)
+			fmt.Fprintf(w, "mysql\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Port)
 		}
 		for _, instance := range postgresInstances {
-			fmt.Fprintf(w, "postgres\t%s\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Unit, instance.DataDir)
+			fmt.Fprintf(w, "postgres\t%s\t%s\t%s\n", instance.Version, databaseInstanceName(instance.Instance), instance.Port)
 		}
 		return w.Flush()
 	},

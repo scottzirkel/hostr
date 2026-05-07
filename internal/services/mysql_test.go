@@ -53,6 +53,24 @@ func TestRenderMySQLConfig(t *testing.T) {
 	}
 }
 
+func TestMySQLConfiguredPortForInstanceReadsConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	if err := WriteMySQLConfigForInstanceWithPort("8.0", "affiliate-platform", "3309"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := MySQLConfiguredPortForInstance("8.0", "affiliate-platform")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "3309" {
+		t.Fatalf("port = %q, want 3309", got)
+	}
+}
+
 func TestMySQLPathsAreVersionScoped(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

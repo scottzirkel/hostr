@@ -5,38 +5,26 @@ priority, not commitment.
 
 ## Pending release
 
+- None.
+
+## Released
+
+### v1.9.0 — optional service list/status polish
+
+- **Database list ports** — `routa db list` now exposes each database
+  instance's configured port in a compact table.
 - **Doctor cutover wording** — `routa doctor` now reports cutover state using
   user-facing descriptions instead of internal phase labels.
-- **Routing path resolution coverage** — focused tests now cover path
-  resolution precedence between broader linked parents and auto-discovered
-  tracked children.
-- **Absolute link root coverage** — explicit links with absolute docroot
-  overrides now have focused routing detection coverage.
-- **Dev-server detection coverage** — mixed projects with Node dev scripts and
-  other framework markers now have detector precedence coverage.
-- **Proxy alias rendering coverage** — aliases that target proxy sites now have
-  focused Caddy fragment rendering coverage.
-- **Proxy target normalization coverage** — command-level proxy target
-  normalization now covers trimmed input and bracketed IPv6 targets.
-- **Proxy override coverage** — explicit proxy links now have focused coverage
-  for overriding auto-discovered tracked filesystem sites.
-- **Alias-chain rendering coverage** — chained aliases now have focused Caddy
-  fragment coverage to ensure each hostname renders separately.
-- **Static docroot priority coverage** — site detection now has focused coverage
-  for `public/` taking precedence over built static output directories.
-- **Static build-output priority coverage** — site detection now has focused
-  coverage for `dist/` taking precedence over later build output directories.
-- **PHP public docroot priority coverage** — mixed `public/index.php` and
-  `public/index.html` projects now have focused PHP detection coverage.
 - **Dev-server port parsing** — `routa dev` now avoids mistaking URL scheme
   prefixes for ports, with coverage for common localhost URLs, wildcard bind
   addresses, and ignored out-of-range ports.
-- **Mailpit status output** — `routa mail status` now prints configured web and
-  SMTP listen addresses before the underlying systemd status.
-- **Search status output** — `routa search status` now prints the configured
-  listen address before the underlying systemd status.
-
-## Released
+- **Optional service status output** — `routa mail status` and
+  `routa search status` now print configured listen addresses before the
+  underlying systemd status.
+- **Routing and rendering coverage** — focused tests now cover linked-path
+  precedence, absolute link roots, proxy overrides, proxy target normalization,
+  proxy aliases, alias chains, static docroot priority, build-output priority,
+  PHP public docroot priority, and mixed dev-server detection.
 
 ### v1.8.1 — PHP public docroot detection
 

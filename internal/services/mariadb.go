@@ -63,6 +63,7 @@ type MariaDBInstance struct {
 	Instance string
 	Unit     string
 	DataDir  string
+	Port     string
 }
 
 func MariaDB(version string) Definition {
@@ -224,6 +225,10 @@ func WriteMariaDBConfigForInstanceWithPort(version, instance, port string) error
 	return os.WriteFile(MariaDBConfigPathForInstance(version, instance), []byte(content), 0o644)
 }
 
+func MariaDBConfiguredPortForInstance(version, instance string) (string, error) {
+	return databaseConfiguredPort(MariaDBConfigPathForInstance(version, instance), "MariaDB", MariaDBDefaultPort)
+}
+
 func EnsureMariaDB(version string) error {
 	return EnsureMariaDBWithPort(version, MariaDBDefaultPort)
 }
@@ -341,11 +346,16 @@ func InstalledMariaDBInstances() ([]MariaDBInstance, error) {
 	}
 	out := make([]MariaDBInstance, 0, len(instances))
 	for instance := range instances {
+		port, err := MariaDBConfiguredPortForInstance(instance.Version, instance.Instance)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, MariaDBInstance{
 			Version:  instance.Version,
 			Instance: instance.Instance,
 			Unit:     MariaDBUnitNameForInstance(instance.Version, instance.Instance),
 			DataDir:  MariaDBDataDirForInstance(instance.Version, instance.Instance),
+			Port:     port,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

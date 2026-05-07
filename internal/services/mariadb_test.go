@@ -52,6 +52,24 @@ func TestRenderMariaDBConfig(t *testing.T) {
 	}
 }
 
+func TestMariaDBConfiguredPortForInstanceReadsConfig(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	if err := WriteMariaDBConfigForInstanceWithPort("11.4", "legacy-app", "3314"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := MariaDBConfiguredPortForInstance("11.4", "legacy-app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "3314" {
+		t.Fatalf("port = %q, want 3314", got)
+	}
+}
+
 func TestMariaDBPathsAreVersionScoped(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())

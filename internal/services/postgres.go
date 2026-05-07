@@ -60,6 +60,7 @@ type PostgresInstance struct {
 	Instance string
 	Unit     string
 	DataDir  string
+	Port     string
 }
 
 func Postgres(version string) Definition {
@@ -213,6 +214,10 @@ func WritePostgresConfigForInstanceWithPort(version, instance, port string) erro
 	return os.WriteFile(PostgresConfigPathForInstance(version, instance), []byte(content), 0o644)
 }
 
+func PostgresConfiguredPortForInstance(version, instance string) (string, error) {
+	return databaseConfiguredPort(PostgresConfigPathForInstance(version, instance), "Postgres", PostgresDefaultPort)
+}
+
 func EnsurePostgres(version string) error {
 	return EnsurePostgresWithPort(version, PostgresDefaultPort)
 }
@@ -347,11 +352,16 @@ func InstalledPostgresInstances() ([]PostgresInstance, error) {
 	}
 	out := make([]PostgresInstance, 0, len(instances))
 	for instance := range instances {
+		port, err := PostgresConfiguredPortForInstance(instance.Version, instance.Instance)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, PostgresInstance{
 			Version:  instance.Version,
 			Instance: instance.Instance,
 			Unit:     PostgresUnitNameForInstance(instance.Version, instance.Instance),
 			DataDir:  PostgresDataDirForInstance(instance.Version, instance.Instance),
+			Port:     port,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

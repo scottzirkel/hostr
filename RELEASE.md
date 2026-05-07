@@ -87,6 +87,7 @@ The initial release line was reconstructed from the first commits:
 - `v1.7.0`: optional service dashboard visibility and start/stop/restart actions.
 - `v1.8.0`: optional service diagnostics, Linux release artifacts, AUR metadata, PHP Xdebug toggles, optional service proxy helpers, PHP-FPM restart aliases, retrying PHP downloads, and safer PHP-FPM env rendering.
 - `v1.8.1`: PHP public front-controller detection no longer requires `composer.json`, so non-Composer apps with `public/index.php` resolve as PHP sites.
+- `v1.9.0`: compact database list output with configured ports, clearer doctor cutover wording, safer dev-server port parsing, Mailpit/search status listen-address headers, and expanded routing/rendering coverage.
 
 ## Pending Release Notes
 

@@ -72,6 +72,7 @@ type MySQLInstance struct {
 	Instance string
 	Unit     string
 	DataDir  string
+	Port     string
 }
 
 type MySQLCredentials struct {
@@ -405,22 +406,7 @@ func ApplyMySQLCredentialsForInstance(version, instance string, creds MySQLCrede
 }
 
 func MySQLConfiguredPortForInstance(version, instance string) (string, error) {
-	data, err := os.ReadFile(MySQLConfigPathForInstance(version, instance))
-	if err != nil {
-		return "", err
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
-		if !ok || key != "port" {
-			continue
-		}
-		value = strings.TrimSpace(value)
-		if err := ValidateTCPPort("MySQL", value); err != nil {
-			return "", err
-		}
-		return value, nil
-	}
-	return "", fmt.Errorf("mysql port not found in %s", MySQLConfigPathForInstance(version, instance))
+	return requiredDatabaseConfiguredPort(MySQLConfigPathForInstance(version, instance), "MySQL")
 }
 
 func mysqlCredentialsSQL(creds MySQLCredentials) string {
@@ -649,11 +635,16 @@ func InstalledMySQLInstances() ([]MySQLInstance, error) {
 	}
 	out := make([]MySQLInstance, 0, len(instances))
 	for instance := range instances {
+		port, err := databaseConfiguredPort(MySQLConfigPathForInstance(instance.Version, instance.Instance), "MySQL", MySQLDefaultPort)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, MySQLInstance{
 			Version:  instance.Version,
 			Instance: instance.Instance,
 			Unit:     MySQLUnitNameForInstance(instance.Version, instance.Instance),
 			DataDir:  MySQLDataDirForInstance(instance.Version, instance.Instance),
+			Port:     port,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool {

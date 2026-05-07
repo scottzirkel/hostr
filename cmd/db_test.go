@@ -103,19 +103,23 @@ func TestDatabaseCredentialsFromFlagsRequiresUser(t *testing.T) {
 func TestDBListShowsDatabaseInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
 
-	touchFile(t, services.MariaDBConfigPath("11.4"))
-	touchFile(t, services.MySQLConfigPath("8.0"))
-	touchFile(t, services.PostgresConfigPath("16"))
-	touchFile(t, services.MySQLConfigPathForInstance("8.0", "affiliate-platform"))
+	if err := services.WriteMariaDBConfigWithPort("11.4", "3314"); err != nil {
+		t.Fatal(err)
+	}
+	if err := services.WriteMySQLConfigWithPort("8.0", "3308"); err != nil {
+		t.Fatal(err)
+	}
+	if err := services.WritePostgresConfigWithPort("16", "5416"); err != nil {
+		t.Fatal(err)
+	}
+	if err := services.WriteMySQLConfigForInstanceWithPort("8.0", "affiliate-platform", "3309"); err != nil {
+		t.Fatal(err)
+	}
 
 	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MariaDBUnitName("10.11"))
-	if err := os.MkdirAll(filepath.Dir(unitPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(unitPath, []byte(""), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	touchFile(t, unitPath)
 
 	var out bytes.Buffer
 	dbListCmd.SetOut(&out)
@@ -133,23 +137,36 @@ func TestDBListShowsDatabaseInstances(t *testing.T) {
 	for _, want := range []string{
 		"ENGINE",
 		"INSTANCE",
+		"PORT",
 		"mariadb",
 		"10.11",
 		"11.4",
+		"3314",
 		"mysql",
 		"8.0",
+		"3308",
+		"3309",
 		"default",
 		"affiliate-platform",
 		"postgres",
 		"16",
+		"5416",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("db list output missing %q:\n%s", want, body)
+		}
+	}
+	for _, unwanted := range []string{
+		"UNIT",
+		"DATA_DIR",
 		services.MariaDBUnitName("10.11"),
 		services.MariaDBDataDir("11.4"),
 		services.MySQLDataDir("8.0"),
 		services.MySQLDataDirForInstance("8.0", "affiliate-platform"),
 		services.PostgresDataDir("16"),
 	} {
-		if !strings.Contains(body, want) {
-			t.Fatalf("db list output missing %q:\n%s", want, body)
+		if strings.Contains(body, unwanted) {
+			t.Fatalf("db list output should not include %q:\n%s", unwanted, body)
 		}
 	}
 }

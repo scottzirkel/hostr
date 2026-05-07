@@ -107,6 +107,58 @@ func ValidateTCPPort(label, port string) error {
 	return nil
 }
 
+func readDatabaseConfiguredPort(configPath, label string) (string, bool, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
+			continue
+		}
+		key, value, ok := strings.Cut(trimmed, "=")
+		if !ok || strings.TrimSpace(key) != "port" {
+			continue
+		}
+		fields := strings.Fields(strings.TrimSpace(value))
+		if len(fields) == 0 {
+			return "", false, fmt.Errorf("invalid %s port line in %s: %q", label, configPath, line)
+		}
+		port := fields[0]
+		if err := ValidateTCPPort(label, port); err != nil {
+			return "", false, err
+		}
+		return port, true, nil
+	}
+	return "", false, nil
+}
+
+func databaseConfiguredPort(configPath, label, defaultPort string) (string, error) {
+	port, ok, err := readDatabaseConfiguredPort(configPath, label)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return defaultPort, nil
+	}
+	return port, nil
+}
+
+func requiredDatabaseConfiguredPort(configPath, label string) (string, error) {
+	port, ok, err := readDatabaseConfiguredPort(configPath, label)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf("%s port not found in %s", strings.ToLower(label), configPath)
+	}
+	return port, nil
+}
+
 func validateInstanceLabel(kind, instance string) error {
 	if instance == "" {
 		return nil
