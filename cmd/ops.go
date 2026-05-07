@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/scottzirkel/routa/internal/caddyconf"
 	"github.com/scottzirkel/routa/internal/cutover"
 	"github.com/scottzirkel/routa/internal/paths"
 	"github.com/scottzirkel/routa/internal/php"
@@ -42,7 +43,7 @@ var reloadCmd = &cobra.Command{
 		if err := site.WriteFragments(sites); err != nil {
 			return err
 		}
-		if err := site.ReloadCaddy(); err != nil {
+		if err := reloadCaddyWithCurrentRootConfig(); err != nil {
 			return err
 		}
 		fmt.Println("reloaded")
@@ -118,11 +119,36 @@ func normalizeUnit(s string) string {
 }
 
 func prepareRestartUnit(unit string) error {
+	if unit == "routa-caddy.service" {
+		return writeCaddyfileForCurrentPhase()
+	}
 	spec, ok := phpSpecFromUnit(unit)
 	if !ok {
 		return nil
 	}
 	return php.WriteFPMConfig(spec)
+}
+
+func reloadCaddyWithCurrentRootConfig() error {
+	if err := writeCaddyfileForCurrentPhase(); err != nil {
+		return err
+	}
+	return site.ReloadCaddy()
+}
+
+func writeCaddyfileForCurrentPhase() error {
+	if currentCaddyfileUsesStandardHTTPSPort() {
+		return caddyconf.Write(caddyconf.PhaseTwo())
+	}
+	return caddyconf.Write(caddyconf.PhaseOne())
+}
+
+func currentCaddyfileUsesStandardHTTPSPort() bool {
+	data, err := os.ReadFile(caddyconf.Path())
+	if err != nil {
+		return cutover.Detect() == cutover.PhaseTwo
+	}
+	return regexp.MustCompile(`(?m)^\s*https_port\s+443\s*$`).Match(data)
 }
 
 func phpSpecFromUnit(unit string) (string, bool) {

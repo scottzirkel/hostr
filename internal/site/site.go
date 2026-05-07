@@ -469,7 +469,11 @@ func RemoveLink(s *State, name string) bool {
 const fragmentTmpl = `{{.SiteAddress}} {
 	bind 127.0.0.1
 {{- if .Secure}}
-	tls internal
+	tls {
+		issuer internal {
+			lifetime 396d
+		}
+	}
 {{- else}}
 	# secure=false: HTTP only
 {{- end}}

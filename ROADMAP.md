@@ -5,7 +5,12 @@ priority, not commitment.
 
 ## Pending release
 
-- None.
+- **More routing edge coverage** — added focused coverage for dotted tracked,
+  linked, and aliased site names, plus cleaned link-path matching.
+- **Longer local TLS certificates** — Caddy-issued `.test` leaf certificates
+  now request a 396-day lifetime, backed by a 730-day local intermediate CA.
+- **Mailpit proxy port detection** — `routa mail proxy` now points at the
+  configured Mailpit web port instead of assuming the default `8025`.
 
 ## Released
 
@@ -190,24 +195,26 @@ trying to become a full-stack desktop dev suite.
   - Publish and maintain the AUR package (`routa-bin`) after the first binary
     release artifacts are attached.
 - **Optional service polish**
-  - Per-service proxy helpers where they make sense, such as named Mailpit
+  - Add remaining proxy helpers where they make sense, such as named Mailpit
     inboxes.
-  - Consistent lifecycle output and list/status formatting across Redis,
-    Mailpit, databases, search, and storage.
+  - Audit remaining lifecycle output and list/status formatting gaps across
+    Redis, Mailpit, search, and storage after the database list and
+    Mailpit/search status polish in `v1.9.0`.
   - Backup/export guidance for stateful service data.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the
   compiled-in upstream bulk profile. Add finer-grained variant selection or
   custom static-php-cli builds for users who need a different extension set.
-- **Xdebug variants** — install xdebug-enabled PHP variants alongside the
-  default bulk profile for users whose installed PHP build does not include
-  Xdebug.
+- **Xdebug variants** — `routa php xdebug on/off/status <version>` manages
+  Xdebug when the installed PHP build includes it. Install xdebug-enabled PHP
+  variants alongside the default bulk profile for users whose installed PHP
+  build does not include Xdebug.
 
 ## Next logical steps
 
 1. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
    and extension variants as a focused PHP developer-experience milestone.
-2. **Optional service polish** — keep smoothing lifecycle output and proxy
-   helpers for search dashboards, MinIO console, and named Mailpit inboxes.
+2. **Optional service polish** — keep smoothing remaining lifecycle output and
+   proxy-helper gaps, especially named Mailpit inboxes.
 
 ## Backlog / ideas
 

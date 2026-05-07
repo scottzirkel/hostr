@@ -93,4 +93,5 @@ The initial release line was reconstructed from the first commits:
 
 ### Next
 
-- None.
+- `routa mail proxy` now reads the configured Mailpit web UI port before
+  registering the `.test` proxy.

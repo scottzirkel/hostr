@@ -353,7 +353,7 @@ func commitAndReload(s *site.State, msg string) error {
 	if err := site.WriteFragments(sites); err != nil {
 		return err
 	}
-	if err := site.ReloadCaddy(); err != nil {
+	if err := reloadCaddyWithCurrentRootConfig(); err != nil {
 		return fmt.Errorf("reload caddy: %w", err)
 	}
 	fmt.Println(msg)

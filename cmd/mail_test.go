@@ -31,6 +31,22 @@ func TestMailpitProxyLinkAcceptsCustomName(t *testing.T) {
 	}
 }
 
+func TestMailpitProxyLinkUsesConfiguredWebPort(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	unit := `[Service]
+ExecStart=/usr/bin/mailpit --listen 127.0.0.1:8026 --smtp 127.0.0.1:1026 --database /tmp/mailpit.db
+`
+	writeFile(t, filepath.Join(paths.SystemdUserDir(), services.MailpitUnitName), unit)
+
+	link, err := mailpitProxyLink([]string{"inbox.test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.Name != "inbox" || link.Target != "127.0.0.1:8026" || !link.Secure {
+		t.Fatalf("link = %#v", link)
+	}
+}
+
 func TestMailpitPortsFromCommandAcceptsOnAlias(t *testing.T) {
 	webPort, smtpPort, err := mailpitPortsFromCommand(mailStartCmd, []string{"on", "8026"}, "", "1026")
 	if err != nil {

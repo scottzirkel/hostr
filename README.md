@@ -297,7 +297,9 @@ export default defineConfig({
 
 The Caddy root certificate lives at
 `~/.local/share/caddy/pki/authorities/local/root.crt` and is installed into the
-system trust store by `routa install`.
+system trust store by `routa install`. routa asks Caddy's internal issuer for
+per-site certificates that are valid for 396 days, with a 730-day local
+intermediate certificate.
 
 ## Running dev servers
 
@@ -343,6 +345,7 @@ routa mail start
 routa mail start --port 8026 --smtp-port 1026
 routa mail start on 8026 --smtp-port 1026
 routa mail proxy        # mail.test -> 127.0.0.1:8025
+routa mail proxy inbox  # inbox.test -> configured Mailpit web port
 routa mail status
 routa mail stop
 ```
@@ -350,7 +353,9 @@ routa mail stop
 `routa mail start` expects `mailpit` to be installed by your system package
 manager. It writes `routa-mailpit.service`, stores Mailpit's persistent
 database under `~/.local/share/routa/services/mailpit/`, binds the web UI to
-`127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025` by default.
+`127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025` by default. `routa mail
+proxy` reads the configured web UI port, so custom `--port` values are reflected
+in the generated `.test` proxy.
 
 ## Databases
 

@@ -357,7 +357,7 @@ var phpInstallCmd = &cobra.Command{
 		if err := site.WriteFragments(sites); err != nil {
 			return err
 		}
-		if err := site.ReloadCaddy(); err != nil {
+		if err := reloadCaddyWithCurrentRootConfig(); err != nil {
 			fmt.Fprintf(os.Stderr, "  warning: caddy reload: %v\n", err)
 		}
 		return nil
@@ -428,7 +428,7 @@ var phpUseCmd = &cobra.Command{
 		if err := site.WriteFragments(sites); err != nil {
 			return err
 		}
-		if err := site.ReloadCaddy(); err != nil {
+		if err := reloadCaddyWithCurrentRootConfig(); err != nil {
 			return err
 		}
 		fmt.Printf("default PHP set to %s\n", args[0])

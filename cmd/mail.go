@@ -117,7 +117,11 @@ func mailpitProxyLink(args []string) (site.Link, error) {
 	if err != nil {
 		return site.Link{}, err
 	}
-	return site.Link{Name: normalized, Target: services.MailpitWebAddr(), Secure: true}, nil
+	webPort, _, err := mailpitConfiguredPorts()
+	if err != nil {
+		return site.Link{}, err
+	}
+	return site.Link{Name: normalized, Target: localhostAddr(webPort), Secure: true}, nil
 }
 
 func mailpitPorts(webPort, smtpPort string) (string, string, error) {

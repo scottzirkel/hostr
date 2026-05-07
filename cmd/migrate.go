@@ -81,7 +81,7 @@ func runMigrate(_ *cobra.Command, _ []string) error {
 	if err := site.WriteFragments(sites); err != nil {
 		return err
 	}
-	if err := site.ReloadCaddy(); err != nil {
+	if err := reloadCaddyWithCurrentRootConfig(); err != nil {
 		return fmt.Errorf("reload caddy: %w", err)
 	}
 	fmt.Printf("\n✓ imported %d tracked dir(s) and %d link(s).\n", len(plan.Parked), len(plan.Links))

@@ -313,6 +313,40 @@ func TestResolveAliasChainUsesFinalTargetConfig(t *testing.T) {
 	}
 }
 
+func TestResolveAllowsDottedNamesAcrossTrackedLinksAndAliases(t *testing.T) {
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	tracked := filepath.Join(parked, "api.app", "public")
+	linked := filepath.Join(root, "linked", "public")
+	for _, dir := range []string{tracked, linked} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("ok"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resolved := (&State{
+		Parked: []string{parked},
+		Links:  []Link{{Name: "shop.app", Path: filepath.Dir(linked), Root: "public", Secure: true}},
+		Aliases: []Alias{
+			{Name: "cdn.app", Target: "shop.app"},
+		},
+	}).Resolve()
+
+	byName := resolvedByName(resolved)
+	if got := byName["api.app"]; got.Kind != KindStatic || got.Docroot != tracked || !got.Secure {
+		t.Fatalf("dotted tracked site = %#v", got)
+	}
+	if got := byName["shop.app"]; got.Kind != KindStatic || got.Docroot != linked || !got.Secure {
+		t.Fatalf("dotted link = %#v", got)
+	}
+	if got := byName["cdn.app"]; got.AliasOf != "shop.app" || got.Kind != KindStatic || got.Docroot != linked {
+		t.Fatalf("dotted alias = %#v", got)
+	}
+}
+
 func TestResolveAliasesSkipMissingCyclesAndConcreteCollisions(t *testing.T) {
 	state := &State{
 		Links: []Link{
@@ -795,13 +829,13 @@ func TestWriteFragmentsSecureToggleForStaticSites(t *testing.T) {
 		{
 			name:   "secure",
 			secure: true,
-			want:   []string{"app.test {", "tls internal"},
+			want:   []string{"app.test {", "issuer internal {", "lifetime 396d"},
 		},
 		{
 			name:       "insecure",
 			secure:     false,
 			want:       []string{"http://app.test {", "# secure=false: HTTP only"},
-			wantAbsent: []string{"tls internal"},
+			wantAbsent: []string{"issuer internal", "lifetime 396d"},
 		},
 	}
 
@@ -856,7 +890,8 @@ func TestWriteFragmentsRendersPHPSiteWithSocket(t *testing.T) {
 	content := readFragment(t, "app")
 	for _, want := range []string{
 		"app.test {",
-		"tls internal",
+		"issuer internal {",
+		"lifetime 396d",
 		"root * " + strconv.Quote(docroot),
 		"php_fastcgi " + strconv.Quote("unix/"+filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.sock")),
 		"file_server",
@@ -944,7 +979,8 @@ func TestWriteFragmentsRendersProxySite(t *testing.T) {
 	content := readFragment(t, "vite")
 	for _, want := range []string{
 		"vite.test {",
-		"tls internal",
+		"issuer internal {",
+		"lifetime 396d",
 		"reverse_proxy " + strconv.Quote("127.0.0.1:5173"),
 		"header_up Host {host}",
 		"header_up X-Forwarded-Proto {scheme}",
@@ -1071,7 +1107,8 @@ func TestWriteFragmentsRendersProxyAlias(t *testing.T) {
 	content := readFragment(t, "frontend")
 	for _, want := range []string{
 		"frontend.test {",
-		"tls internal",
+		"issuer internal {",
+		"lifetime 396d",
 		"reverse_proxy " + strconv.Quote("127.0.0.1:5173"),
 		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "frontend.log")),
 	} {
@@ -1242,6 +1279,23 @@ func TestResolvePathDoesNotMatchSiblingPathPrefixes(t *testing.T) {
 	siblingMatches := state.ResolvePath(sibling)
 	if len(siblingMatches) != 0 {
 		t.Fatalf("sibling with path prefix should not match app: %#v", siblingMatches)
+	}
+}
+
+func TestResolvePathMatchesCleanedLinkPaths(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "app")
+	if err := os.MkdirAll(filepath.Join(project, "subdir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	state := &State{
+		Links: []Link{{Name: "app", Path: filepath.Join(project, "..", "app"), Secure: true}},
+	}
+
+	matches := state.ResolvePath(filepath.Join(project, "subdir"))
+	if len(matches) != 1 || matches[0].Name != "app" {
+		t.Fatalf("cleaned link path should match project child: %#v", matches)
 	}
 }
 

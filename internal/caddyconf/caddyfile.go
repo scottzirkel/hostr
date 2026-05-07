@@ -14,6 +14,11 @@ const rootTmpl = `{
 	http_port  {{.HTTPPort}}
 	https_port {{.HTTPSPort}}
 	admin      127.0.0.1:{{.AdminPort}}
+	pki {
+		ca local {
+			intermediate_lifetime {{.IntermediateLifetime}}
+		}
+	}
 	log {
 		output file {{.LogFile}} {
 			roll_size 10MiB
@@ -28,19 +33,20 @@ import {{.SitesDir}}/*.caddy
 `
 
 type RootConfig struct {
-	HTTPPort  int
-	HTTPSPort int
-	AdminPort int
+	HTTPPort             int
+	HTTPSPort            int
+	AdminPort            int
+	IntermediateLifetime string
 }
 
 // PhaseOne is the alternate-port config.
 func PhaseOne() RootConfig {
-	return RootConfig{HTTPPort: 8080, HTTPSPort: 8443, AdminPort: 2019}
+	return RootConfig{HTTPPort: 8080, HTTPSPort: 8443, AdminPort: 2019, IntermediateLifetime: "730d"}
 }
 
 // PhaseTwo is the post-cutover config: standard ports.
 func PhaseTwo() RootConfig {
-	return RootConfig{HTTPPort: 80, HTTPSPort: 443, AdminPort: 2019}
+	return RootConfig{HTTPPort: 80, HTTPSPort: 443, AdminPort: 2019, IntermediateLifetime: "730d"}
 }
 
 // Path returns the Caddyfile path used by the systemd unit.

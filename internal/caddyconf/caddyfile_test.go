@@ -24,6 +24,7 @@ func TestWriteRendersRotatingLogs(t *testing.T) {
 	for _, want := range []string{
 		"http_port  8080",
 		"https_port 8443",
+		"intermediate_lifetime 730d",
 		"output file " + strconv.Quote(filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "log", "caddy.log")) + " {",
 		"roll_size 10MiB",
 		"roll_keep 5",
