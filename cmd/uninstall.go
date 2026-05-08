@@ -103,6 +103,7 @@ func phpUnitsForUninstall(systemdDir, runDir string) []string {
 
 	for _, pattern := range []string{
 		filepath.Join(runDir, "php-fpm-*.conf"),
+		filepath.Join(runDir, "php-fpm-*.ini"),
 		filepath.Join(runDir, "php-fpm-*.sock"),
 	} {
 		matches, _ := filepath.Glob(pattern)

@@ -98,6 +98,46 @@ var phpXdebugCmd = &cobra.Command{
 	Short: "Toggle Xdebug settings for an installed PHP build",
 }
 
+var phpXdebugInstallCmd = &cobra.Command{
+	Use:   "install [version]",
+	Short: "Install the Routa-managed Xdebug extension for a PHP version",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
+		if err := requirePHP(spec); err != nil {
+			return err
+		}
+		ctx := cmd.Context()
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		installed, err := php.InstallXdebug(ctx, spec, cmd.OutOrStdout())
+		if err != nil {
+			return fmt.Errorf("install Xdebug for PHP %s: %w", spec, err)
+		}
+		if !installed {
+			exact, _ := php.ResolveInstalledSpec(spec)
+			if exact == "" {
+				exact = spec
+			}
+			return fmt.Errorf("Xdebug extension artifact is not published for PHP %s yet", exact)
+		}
+		for _, s := range xdebugConfigSpecs(spec) {
+			if _, err := php.EnsureXdebugDisabledIfAvailable(s); err != nil {
+				return err
+			}
+			if err := php.WriteFPMConfig(s); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "installed Xdebug for PHP %s; defaulted to off\n", spec)
+		return applyPHPINIChange(cmd, spec)
+	},
+}
+
 var phpXdebugOnCmd = &cobra.Command{
 	Use:   "on [version]",
 	Short: "Enable Xdebug for a PHP version",
@@ -110,7 +150,7 @@ var phpXdebugOnCmd = &cobra.Command{
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
-		if err := requirePHPModule(spec, "xdebug"); err != nil {
+		if err := requireXdebugAvailable(spec); err != nil {
 			return err
 		}
 		opts := php.XdebugOptions{
@@ -183,6 +223,7 @@ var phpXdebugStatusCmd = &cobra.Command{
 		fmt.Fprintf(w, "%s\t%s\n", php.XdebugStartWithRequestKey, valueOrDefault(status.StartWithRequest, "(unset)"))
 		fmt.Fprintf(w, "%s\t%s\n", php.XdebugClientHostKey, valueOrDefault(status.ClientHost, "(unset)"))
 		fmt.Fprintf(w, "%s\t%s\n", php.XdebugClientPortKey, valueOrDefault(status.ClientPort, "(unset)"))
+		fmt.Fprintf(w, "%s\t%s\n", php.ZendExtensionKey, valueOrDefault(status.ZendExtension, "(unset)"))
 		return w.Flush()
 	},
 }
@@ -344,6 +385,13 @@ var phpInstallCmd = &cobra.Command{
 
 		if err := php.Install(ctx, *rel, os.Stdout); err != nil {
 			return err
+		}
+		if installed, err := php.InstallXdebug(ctx, rel.Version.String(), os.Stdout); err != nil {
+			fmt.Fprintf(os.Stderr, "  warning: Xdebug install: %v\n", err)
+		} else if installed {
+			fmt.Printf("→ Xdebug extension installed for %s\n", rel.Version)
+		} else {
+			fmt.Printf("→ Xdebug extension not published for %s; install continues\n", rel.Version)
 		}
 
 		// Write fpm config for both forms so either unit instance works.
@@ -512,6 +560,46 @@ func requirePHPModule(spec, module string) error {
 		}
 	}
 	return fmt.Errorf("PHP %s does not include %s. Run `routa php ext list %s` to inspect compiled extensions", spec, module, spec)
+}
+
+func requireXdebugAvailable(spec string) error {
+	if php.XdebugExtensionAvailable(spec) {
+		return nil
+	}
+	modules, err := php.Modules(spec)
+	if err != nil {
+		return err
+	}
+	for _, installed := range modules {
+		if strings.EqualFold(installed, "xdebug") {
+			return nil
+		}
+	}
+	return fmt.Errorf("Xdebug is not installed for PHP %s. Run: routa php xdebug install %s", spec, spec)
+}
+
+func xdebugConfigSpecs(spec string) []string {
+	seen := map[string]bool{}
+	var specs []string
+	add := func(s string) {
+		if s == "" || seen[s] {
+			return
+		}
+		seen[s] = true
+		specs = append(specs, s)
+	}
+	add(spec)
+	exact, err := php.ResolveInstalledSpec(spec)
+	if err == nil {
+		add(exact)
+		if v, err := php.ParseVersion(exact); err == nil {
+			minor := v.MinorString()
+			if target, ok, err := php.AliasTarget(minor); err == nil && ok && target == exact {
+				add(minor)
+			}
+		}
+	}
+	return specs
 }
 
 func valueOrDefault(value, fallback string) string {
@@ -725,7 +813,7 @@ var phpRmCmd = &cobra.Command{
 
 func init() {
 	phpExtCmd.AddCommand(phpExtListCmd)
-	phpXdebugCmd.AddCommand(phpXdebugOnCmd, phpXdebugOffCmd, phpXdebugStatusCmd)
+	phpXdebugCmd.AddCommand(phpXdebugInstallCmd, phpXdebugOnCmd, phpXdebugOffCmd, phpXdebugStatusCmd)
 	defaultXdebug := php.DefaultXdebugOptions()
 	phpXdebugOnCmd.Flags().StringVar(&phpXdebugMode, "mode", defaultXdebug.Mode, "Xdebug mode value")
 	phpXdebugOnCmd.Flags().StringVar(&phpXdebugStartWithRequest, "start-with-request", defaultXdebug.StartWithRequest, "Xdebug start_with_request value")

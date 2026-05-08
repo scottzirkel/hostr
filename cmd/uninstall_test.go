@@ -19,6 +19,7 @@ func TestPHPUnitsForUninstallDiscoversEnabledAndRuntimeInstances(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join(systemdDir, "routa-php@.service"),
 		filepath.Join(wantsDir, "routa-php@8.4.service"),
+		filepath.Join(runDir, "php-fpm-8.2.ini"),
 		filepath.Join(runDir, "php-fpm-8.3.conf"),
 		filepath.Join(runDir, "php-fpm-8.3.sock"),
 	} {
@@ -28,7 +29,7 @@ func TestPHPUnitsForUninstallDiscoversEnabledAndRuntimeInstances(t *testing.T) {
 	}
 
 	got := phpUnitsForUninstall(systemdDir, runDir)
-	want := []string{"routa-php@8.3.service", "routa-php@8.4.service"}
+	want := []string{"routa-php@8.2.service", "routa-php@8.3.service", "routa-php@8.4.service"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("phpUnitsForUninstall() = %#v, want %#v", got, want)
 	}

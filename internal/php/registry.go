@@ -1,5 +1,5 @@
 // Package php manages installed PHP versions: discovery from the
-// dl.static-php.dev "bulk" musl-static channel (Laravel-ready extension set),
+// dl.static-php.dev "gnu-bulk" glibc channel (Laravel-ready extension set),
 // download/extract, php-fpm config rendering, and a templated systemd user unit.
 package php
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,8 +17,8 @@ import (
 )
 
 const (
-	bulkListURL = "https://dl.static-php.dev/static-php-cli/bulk/?format=json"
-	bulkBaseURL = "https://dl.static-php.dev/static-php-cli/bulk"
+	bulkListURL = "https://dl.static-php.dev/static-php-cli/gnu-bulk/?format=json"
+	bulkBaseURL = "https://dl.static-php.dev/static-php-cli/gnu-bulk"
 )
 
 type listEntry struct {
@@ -77,9 +78,13 @@ func ParseVersion(s string) (Version, error) {
 	return v, nil
 }
 
-var verRE = regexp.MustCompile(`^php-(\d+)\.(\d+)\.(\d+)-(cli|fpm)-linux-x86_64\.tar\.gz$`)
+var verRE = regexp.MustCompile(`^php-(\d+)\.(\d+)\.(\d+)-(cli|fpm)-linux-(x86_64|aarch64)\.tar\.gz$`)
 
 func FetchReleases(ctx context.Context) ([]Release, error) {
+	arch, err := staticPHPArch()
+	if err != nil {
+		return nil, err
+	}
 	req, _ := http.NewRequestWithContext(ctx, "GET", bulkListURL, nil)
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -103,6 +108,9 @@ func FetchReleases(ctx context.Context) ([]Release, error) {
 		}
 		m := verRE.FindStringSubmatch(e.Name)
 		if m == nil {
+			continue
+		}
+		if m[5] != arch {
 			continue
 		}
 		maj, _ := strconv.Atoi(m[1])
@@ -131,6 +139,17 @@ func FetchReleases(ctx context.Context) ([]Release, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Version.Less(out[j].Version) })
 	return out, nil
+}
+
+func staticPHPArch() (string, error) {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64", nil
+	case "arm64":
+		return "aarch64", nil
+	default:
+		return "", fmt.Errorf("unsupported PHP archive architecture %q", runtime.GOARCH)
+	}
 }
 
 // Resolve picks the highest version matching spec ("8.3", "8.3.30", or "latest").

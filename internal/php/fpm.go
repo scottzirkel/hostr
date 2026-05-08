@@ -33,7 +33,7 @@ pm.max_requests = 500
 clear_env = no
 catch_workers_output = yes
 decorate_workers_output = no
-{{range .INISettings}}php_admin_value[{{.Key}}] = {{.Value}}
+{{range .PoolINISettings}}php_admin_value[{{.Key}}] = {{.Value}}
 {{end}}
 {{range .SitePools}}
 [{{.PoolName}}]
@@ -46,7 +46,7 @@ pm.max_requests = 500
 clear_env = no
 catch_workers_output = yes
 decorate_workers_output = no
-{{range $.INISettings}}php_admin_value[{{.Key}}] = {{.Value}}
+{{range $.PoolINISettings}}php_admin_value[{{.Key}}] = {{.Value}}
 {{end}}{{range .Env}}{{if .Value}}env[{{.Key}}] = {{fpmQuote .Value}}
 {{end}}{{end}}
 {{end}}
@@ -59,7 +59,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={{.PHPDir}}/%i/bin/php-fpm --nodaemonize --fpm-config {{.RunDir}}/php-fpm-%i.conf
+ExecStart={{.PHPDir}}/%i/bin/php-fpm --nodaemonize --php-ini {{.RunDir}}/php-fpm-%i.ini --fpm-config {{.RunDir}}/php-fpm-%i.conf
 ExecReload=/bin/kill -USR2 $MAINPID
 Restart=on-failure
 RestartSec=2
@@ -71,11 +71,11 @@ WantedBy=default.target
 `
 
 type fpmTmplData struct {
-	RunDir      string
-	LogDir      string
-	Spec        string
-	INISettings []INISetting
-	SitePools   []SitePool
+	RunDir          string
+	LogDir          string
+	Spec            string
+	PoolINISettings []INISetting
+	SitePools       []SitePool
 }
 
 type SitePool struct {
@@ -105,6 +105,10 @@ func WriteFPMConfig(spec string) error {
 	if err != nil {
 		return err
 	}
+	iniPath := filepath.Join(paths.RunDir(), fmt.Sprintf("php-fpm-%s.ini", spec))
+	if err := writeINISettingsFile(iniPath, settings); err != nil {
+		return err
+	}
 	sitePools, err := sitePoolsForSpec(spec)
 	if err != nil {
 		return err
@@ -117,12 +121,23 @@ func WriteFPMConfig(spec string) error {
 	}
 	defer f.Close()
 	return t.Execute(f, fpmTmplData{
-		RunDir:      paths.RunDir(),
-		LogDir:      paths.LogDir(),
-		Spec:        spec,
-		INISettings: settings,
-		SitePools:   sitePools,
+		RunDir:          paths.RunDir(),
+		LogDir:          paths.LogDir(),
+		Spec:            spec,
+		PoolINISettings: poolINISettings(settings),
+		SitePools:       sitePools,
 	})
+}
+
+func poolINISettings(settings []INISetting) []INISetting {
+	out := make([]INISetting, 0, len(settings))
+	for _, setting := range settings {
+		if setting.Key == ZendExtensionKey {
+			continue
+		}
+		out = append(out, setting)
+	}
+	return out
 }
 
 func RefreshFPMConfigsForSites(sites []site.Resolved) error {

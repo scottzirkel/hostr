@@ -19,6 +19,7 @@ type INISetting struct {
 }
 
 const (
+	ZendExtensionKey          = "zend_extension"
 	XdebugModeKey             = "xdebug.mode"
 	XdebugStartWithRequestKey = "xdebug.start_with_request"
 	XdebugClientHostKey       = "xdebug.client_host"
@@ -39,6 +40,7 @@ type XdebugStatus struct {
 	StartWithRequest string
 	ClientHost       string
 	ClientPort       string
+	ZendExtension    string
 }
 
 func LaravelINISettings() []INISetting {
@@ -94,6 +96,15 @@ func DefaultXdebugOptions() XdebugOptions {
 	}
 }
 
+func XdebugExtensionPath(spec string) string {
+	return filepath.Join(paths.PHPDir(), spec, "extensions", "xdebug.so")
+}
+
+func XdebugExtensionAvailable(spec string) bool {
+	info, err := os.Stat(XdebugExtensionPath(spec))
+	return err == nil && !info.IsDir()
+}
+
 func EnableXdebug(spec string, opts XdebugOptions) error {
 	if opts.Mode == "" {
 		opts.Mode = DefaultXdebugOptions().Mode
@@ -107,12 +118,17 @@ func EnableXdebug(spec string, opts XdebugOptions) error {
 	if opts.ClientPort == "" {
 		opts.ClientPort = DefaultXdebugOptions().ClientPort
 	}
-	for _, setting := range []INISetting{
+	settings := []INISetting{}
+	if XdebugExtensionAvailable(spec) {
+		settings = append(settings, INISetting{Key: ZendExtensionKey, Value: XdebugExtensionPath(spec)})
+	}
+	settings = append(settings, []INISetting{
 		{Key: XdebugModeKey, Value: opts.Mode},
 		{Key: XdebugStartWithRequestKey, Value: opts.StartWithRequest},
 		{Key: XdebugClientHostKey, Value: opts.ClientHost},
 		{Key: XdebugClientPortKey, Value: opts.ClientPort},
-	} {
+	}...)
+	for _, setting := range settings {
 		if err := SetINISetting(spec, setting.Key, setting.Value); err != nil {
 			return err
 		}
@@ -121,6 +137,18 @@ func EnableXdebug(spec string, opts XdebugOptions) error {
 }
 
 func DisableXdebug(spec string) error {
+	settings, err := LoadINISettings(spec)
+	if err != nil {
+		return err
+	}
+	for _, setting := range settings {
+		if setting.Key == ZendExtensionKey && isXdebugZendExtension(setting.Value) {
+			if err := UnsetINISetting(spec, ZendExtensionKey); err != nil {
+				return err
+			}
+			break
+		}
+	}
 	for _, setting := range []INISetting{
 		{Key: XdebugModeKey, Value: "off"},
 		{Key: XdebugStartWithRequestKey, Value: "default"},
@@ -133,18 +161,24 @@ func DisableXdebug(spec string) error {
 }
 
 func EnsureXdebugDisabledIfAvailable(spec string) (bool, error) {
+	available := XdebugExtensionAvailable(spec)
 	modules, err := Modules(spec)
 	if err != nil {
-		return false, err
+		if !available {
+			return false, err
+		}
+	} else if moduleLoaded(modules, "xdebug") {
+		available = true
 	}
-	if !moduleLoaded(modules, "xdebug") {
+	if !available {
 		return false, nil
 	}
 	return true, DisableXdebug(spec)
 }
 
 func XdebugINIStatus(spec string, modules []string) (XdebugStatus, error) {
-	status := XdebugStatus{Available: moduleLoaded(modules, "xdebug")}
+	loaded := moduleLoaded(modules, "xdebug")
+	status := XdebugStatus{Available: loaded || XdebugExtensionAvailable(spec)}
 	settings, err := EffectiveINISettings(spec)
 	if err != nil {
 		return status, err
@@ -157,8 +191,15 @@ func XdebugINIStatus(spec string, modules []string) (XdebugStatus, error) {
 	status.StartWithRequest = values[XdebugStartWithRequestKey]
 	status.ClientHost = values[XdebugClientHostKey]
 	status.ClientPort = values[XdebugClientPortKey]
-	status.Enabled = status.Available && status.Mode != "" && !strings.EqualFold(status.Mode, "off")
+	status.ZendExtension = values[ZendExtensionKey]
+	configured := isXdebugZendExtension(status.ZendExtension)
+	status.Enabled = status.Available && (loaded || configured) && !strings.EqualFold(status.Mode, "off")
 	return status, nil
+}
+
+func isXdebugZendExtension(value string) bool {
+	value = strings.Trim(strings.TrimSpace(value), `"'`)
+	return strings.EqualFold(filepath.Base(value), "xdebug.so")
 }
 
 func moduleLoaded(modules []string, want string) bool {
@@ -179,6 +220,10 @@ func WriteCLIConfig(spec string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
+	return dir, writeINISettingsFile(filepath.Join(dir, "php.ini"), settings)
+}
+
+func writeINISettingsFile(path string, settings []INISetting) error {
 	var lines []string
 	for _, setting := range settings {
 		lines = append(lines, fmt.Sprintf("%s = %s", setting.Key, setting.Value))
@@ -187,7 +232,7 @@ func WriteCLIConfig(spec string) (string, error) {
 	if content != "" {
 		content += "\n"
 	}
-	return dir, os.WriteFile(filepath.Join(dir, "php.ini"), []byte(content), 0o644)
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 func LoadINISettings(spec string) ([]INISetting, error) {

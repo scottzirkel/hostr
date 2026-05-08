@@ -94,7 +94,7 @@ routa php ini set 8.4 memory_limit 512M
 routa php ini set 8.4 upload_max_filesize 128M
 routa php ini set 8.4 post_max_size 128M
 routa php ext list [8.4]
-routa php xdebug on [8.4] / off [8.4] / status [8.4]
+routa php xdebug install [8.4] / on [8.4] / off [8.4] / status [8.4]
 routa track / untrack / ignore / unignore / link / unlink / alias / unalias / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
@@ -189,9 +189,9 @@ matching PHP-FPM config.
 
 ## PHP extensions
 
-The bundled PHP builds use the upstream static-php-cli bulk profile. Extensions
-are compiled into the PHP binary, so routa lists what is available rather than
-installing shared modules at runtime:
+The bundled PHP builds use the upstream static-php-cli `gnu-bulk` profile.
+Most extensions are compiled into the PHP binary, so routa lists what is
+available:
 
 ```bash
 routa php ext list
@@ -203,11 +203,13 @@ directory or the default PHP version. Pass an explicit version, such as
 
 ## Xdebug
 
-When an installed PHP build includes Xdebug, routa defaults it to off during
-install and can toggle per-version debugging settings later for both CLI proxy
-commands and PHP-FPM:
+`routa php install <version>` installs a Routa-managed Xdebug shared extension
+next to the exact PHP version when an artifact is published for that PHP
+release. Xdebug defaults to off, and toggling later only edits Routa's
+per-version ini plus restarts that PHP-FPM service:
 
 ```bash
+routa php xdebug install
 routa php xdebug on
 routa php xdebug status
 routa php xdebug off
@@ -218,9 +220,10 @@ routa php xdebug off
 `xdebug.client_port=9003`. When no version is provided, routa uses the PHP
 version selected for the current directory or the default PHP version. Pass an
 explicit version, such as `routa php xdebug on 8.4`, to manage a different
-installation. Use `routa php ext list [version]` to confirm the installed build
-includes Xdebug. The current upstream bulk profile usually does not include
-Xdebug; routa will skip Xdebug ini defaults for those builds.
+installation. `status` reports the managed `zend_extension` path when Xdebug is
+available. `routa php xdebug install [version]` can fetch the extension later
+without reinstalling PHP if the artifact was not available during the original
+PHP install.
 
 ## Custom docroot
 

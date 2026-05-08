@@ -50,11 +50,16 @@ Before `v1.0.0`, minor releases may still include breaking changes, but prefer c
 7. Create the GitHub release from the pushed tag. The release-artifacts workflow
    attaches Linux `amd64` and `arm64` archives plus a checksum file.
 
-8. For AUR releases, update `packaging/aur/routa-bin/PKGBUILD` with the new
+8. When the supported upstream PHP patch versions change, run the
+   `php xdebug artifacts` workflow for those exact versions so
+   `routa php install <version>` can fetch matching managed Xdebug shared
+   extensions from the `php-xdebug` release.
+
+9. For AUR releases, update `packaging/aur/routa-bin/PKGBUILD` with the new
    `pkgver` and release checksums, regenerate `.SRCINFO`, then publish those
    files to the AUR package repository.
 
-9. Verify locally:
+10. Verify locally:
 
    ```bash
    git status -sb

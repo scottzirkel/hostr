@@ -143,6 +143,57 @@ func TestDownloadAndExtractDoesNotRetryNotFound(t *testing.T) {
 	}
 }
 
+func TestInstallXdebugDownloadsSharedExtension(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	archive := testTarGz(t, "xdebug so")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "routa_php_xdebug_8.4.20_linux_") {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/gzip")
+		_, _ = w.Write(archive)
+	}))
+	defer server.Close()
+	t.Setenv("ROUTA_PHP_XDEBUG_BASE_URL", server.URL)
+
+	var out bytes.Buffer
+	ok, err := InstallXdebug(context.Background(), "8.4.20", &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected Xdebug to be installed")
+	}
+	data, err := os.ReadFile(XdebugExtensionPath("8.4.20"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "xdebug so" {
+		t.Fatalf("xdebug.so = %q", data)
+	}
+	if !strings.Contains(out.String(), "xdebug   8.4.20") {
+		t.Fatalf("install output missing xdebug download:\n%s", out.String())
+	}
+}
+
+func TestInstallXdebugSkipsMissingArtifact(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	t.Setenv("ROUTA_PHP_XDEBUG_BASE_URL", server.URL)
+
+	ok, err := InstallXdebug(context.Background(), "8.4.20", io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected missing artifact to be skipped")
+	}
+	if _, err := os.Stat(XdebugExtensionPath("8.4.20")); !os.IsNotExist(err) {
+		t.Fatalf("xdebug.so exists after missing artifact: %v", err)
+	}
+}
+
 func testTarGz(t *testing.T, content string) []byte {
 	t.Helper()
 	var buf bytes.Buffer

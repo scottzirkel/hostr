@@ -83,6 +83,44 @@ func TestWriteFPMConfigIncludesINISettings(t *testing.T) {
 	}
 }
 
+func TestWriteFPMConfigWritesZendExtensionToPHPIni(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	extPath := XdebugExtensionPath("8.4")
+	if err := os.MkdirAll(filepath.Dir(extPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(extPath, []byte("xdebug"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnableXdebug("8.4", XdebugOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteFPMConfig("8.4"); err != nil {
+		t.Fatal(err)
+	}
+
+	confPath := filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.conf")
+	confData, err := os.ReadFile(confPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(confData), "php_admin_value[zend_extension]") {
+		t.Fatalf("zend_extension should be written to php.ini, not pool config:\n%s", confData)
+	}
+
+	iniPath := filepath.Join(os.Getenv("XDG_STATE_HOME"), "routa", "run", "php-fpm-8.4.ini")
+	iniData, err := os.ReadFile(iniPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(iniData), "zend_extension = "+extPath) {
+		t.Fatalf("FPM php.ini missing zend_extension:\n%s", iniData)
+	}
+}
+
 func TestWriteFPMConfigIncludesSiteEnvPool(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -273,6 +311,41 @@ func TestXdebugToggleSettings(t *testing.T) {
 	}
 }
 
+func TestXdebugToggleSharedExtension(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	extPath := XdebugExtensionPath("8.4")
+	if err := os.MkdirAll(filepath.Dir(extPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(extPath, []byte("xdebug"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := EnableXdebug("8.4", XdebugOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	status, err := XdebugINIStatus("8.4", []string{"Core"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || !status.Enabled || status.ZendExtension != extPath {
+		t.Fatalf("status = %#v, want shared extension enabled", status)
+	}
+
+	if err := DisableXdebug("8.4"); err != nil {
+		t.Fatal(err)
+	}
+	status, err = XdebugINIStatus("8.4", []string{"Core"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || status.Enabled || status.ZendExtension != "" || status.Mode != "off" {
+		t.Fatalf("status = %#v, want available but disabled", status)
+	}
+}
+
 func TestXdebugStatusUnavailableWhenModuleMissing(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
@@ -285,6 +358,34 @@ func TestXdebugStatusUnavailableWhenModuleMissing(t *testing.T) {
 	}
 	if status.Available || status.Enabled {
 		t.Fatalf("status = %#v, want unavailable and disabled", status)
+	}
+}
+
+func TestEnsureXdebugDisabledIfAvailableUsesSharedExtension(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	extPath := XdebugExtensionPath("8.4")
+	if err := os.MkdirAll(filepath.Dir(extPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(extPath, []byte("xdebug"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ok, err := EnsureXdebugDisabledIfAvailable("8.4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected shared Xdebug extension to be detected")
+	}
+	status, err := XdebugINIStatus("8.4", []string{"Core"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || status.Enabled || status.Mode != "off" || status.StartWithRequest != "default" {
+		t.Fatalf("status = %#v", status)
 	}
 }
 

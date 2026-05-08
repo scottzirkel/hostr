@@ -5,7 +5,14 @@ priority, not commitment.
 
 ## Pending release
 
-- None.
+- **Xdebug-capable PHP installs** — PHP downloads now use the upstream
+  static-php-cli `gnu-bulk` channel so shared extensions can load on glibc
+  systems, `routa php install <version>` attempts to install a matching
+  Routa-managed `xdebug.so`, and `routa php xdebug install/on/off/status`
+  can add, toggle, and inspect Xdebug later without reinstalling PHP.
+- **Xdebug artifact pipeline** — added a manual GitHub Actions workflow and
+  build script for publishing per-PHP-version Linux `amd64`/`arm64` Xdebug
+  shared-extension archives to the `php-xdebug` release used by the installer.
 
 ## Released
 
@@ -210,18 +217,12 @@ trying to become a full-stack desktop dev suite.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the
   compiled-in upstream bulk profile. Add finer-grained variant selection or
   custom static-php-cli builds for users who need a different extension set.
-- **Xdebug variants** — `routa php xdebug on/off/status <version>` manages
-  Xdebug when the installed PHP build includes it. Install xdebug-enabled PHP
-  variants alongside the default bulk profile for users whose installed PHP
-  build does not include Xdebug.
 
 ## Next logical steps
 
-1. **PHP variant decision** — choose whether routa should consume an upstream
-   xdebug-capable static-php-cli channel, build custom variants, or keep
-   documenting Xdebug as available only when compiled into the installed build.
-2. **Release pending work** — cut the next release so GitHub artifacts are
-   attached, then update/publish the AUR package from those release artifacts.
+1. **Release pending work** — cut the next release so GitHub artifacts and
+   matching PHP Xdebug artifacts are attached, then update/publish the AUR
+   package from those release artifacts.
 
 ## Backlog / ideas
 

@@ -63,3 +63,26 @@ func TestExplicitOrCurrentPHPSpecDefaultsToCurrentPHP(t *testing.T) {
 		t.Fatalf("spec = %q, want current default 8.4", got)
 	}
 }
+
+func TestXdebugConfigSpecsIncludesAliasWhenPresent(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	exact := filepath.Join(paths.PHPDir(), "8.4.20")
+	if err := os.MkdirAll(filepath.Join(exact, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("8.4.20", filepath.Join(paths.PHPDir(), "8.4")); err != nil {
+		t.Fatal(err)
+	}
+
+	got := xdebugConfigSpecs("8.4.20")
+	want := []string{"8.4.20", "8.4"}
+	if len(got) != len(want) {
+		t.Fatalf("specs = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("specs = %#v, want %#v", got, want)
+		}
+	}
+}
