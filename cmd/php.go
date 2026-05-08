@@ -61,11 +61,14 @@ var phpExtCmd = &cobra.Command{
 }
 
 var phpExtListCmd = &cobra.Command{
-	Use:   "list <version>",
+	Use:   "list [version]",
 	Short: "List compiled PHP extensions for a version",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
@@ -96,11 +99,14 @@ var phpXdebugCmd = &cobra.Command{
 }
 
 var phpXdebugOnCmd = &cobra.Command{
-	Use:   "on <version>",
+	Use:   "on [version]",
 	Short: "Enable Xdebug for a PHP version",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
@@ -122,11 +128,14 @@ var phpXdebugOnCmd = &cobra.Command{
 }
 
 var phpXdebugOffCmd = &cobra.Command{
-	Use:   "off <version>",
+	Use:   "off [version]",
 	Short: "Disable Xdebug for a PHP version",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
@@ -139,11 +148,14 @@ var phpXdebugOffCmd = &cobra.Command{
 }
 
 var phpXdebugStatusCmd = &cobra.Command{
-	Use:   "status <version>",
+	Use:   "status [version]",
 	Short: "Show Xdebug status for a PHP version",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
@@ -175,12 +187,26 @@ var phpXdebugStatusCmd = &cobra.Command{
 	},
 }
 
+func explicitOrCurrentPHPSpec(args []string) (string, error) {
+	if len(args) == 1 {
+		return args[0], nil
+	}
+	ctx, err := currentPHPContext()
+	if err != nil {
+		return "", err
+	}
+	return ctx.Spec, nil
+}
+
 var phpINIShowCmd = &cobra.Command{
-	Use:   "show <version>",
+	Use:   "show [version]",
 	Short: "Show per-version PHP ini settings",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}
@@ -203,14 +229,18 @@ var phpINIShowCmd = &cobra.Command{
 }
 
 var phpINIPathCmd = &cobra.Command{
-	Use:   "path <version>",
+	Use:   "path [version]",
 	Short: "Print the per-version PHP ini path",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requirePHP(args[0]); err != nil {
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), php.INIPath(args[0]))
+		if err := requirePHP(spec); err != nil {
+			return err
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), php.INIPath(spec))
 		return nil
 	},
 }
@@ -250,11 +280,14 @@ var phpINIUnsetCmd = &cobra.Command{
 }
 
 var phpINIEditCmd = &cobra.Command{
-	Use:   "edit <version>",
+	Use:   "edit [version]",
 	Short: "Open the per-version PHP ini file in $EDITOR",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		spec := args[0]
+		spec, err := explicitOrCurrentPHPSpec(args)
+		if err != nil {
+			return err
+		}
 		if err := requirePHP(spec); err != nil {
 			return err
 		}

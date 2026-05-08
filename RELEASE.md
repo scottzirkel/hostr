@@ -95,3 +95,11 @@ The initial release line was reconstructed from the first commits:
 
 - `routa mail proxy` now reads the configured Mailpit web UI port before
   registering the `.test` proxy.
+- `routa php xdebug on/off/status` can now infer the current PHP version when
+  no explicit version argument is provided.
+- `routa php ext list` can now infer the current PHP version when no explicit
+  version argument is provided.
+- `routa php ini show/path/edit` can now infer the current PHP version when no
+  explicit version argument is provided.
+- `routa storage status` and `routa storage list` now show configured MinIO API
+  and console ports.

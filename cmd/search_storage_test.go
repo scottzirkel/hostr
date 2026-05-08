@@ -164,6 +164,19 @@ func TestMinIOProxyLinkUsesConfiguredConsolePort(t *testing.T) {
 	}
 }
 
+func TestMinIOStatusHeaderIncludesAPIAndConsoleAddrs(t *testing.T) {
+	got := minIOStatusHeader(services.MinIOUnitName("RELEASE.2026-05-01T00-00-00Z"), "9002", "9003")
+	for _, want := range []string{
+		services.MinIOUnitName("RELEASE.2026-05-01T00-00-00Z"),
+		"API 127.0.0.1:9002",
+		"console 127.0.0.1:9003",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("header missing %q: %s", want, got)
+		}
+	}
+}
+
 func TestStorageListShowsMinIOInstances(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
@@ -173,12 +186,7 @@ func TestStorageListShowsMinIOInstances(t *testing.T) {
 		t.Fatal(err)
 	}
 	unitPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MinIOUnitName(version))
-	if err := os.MkdirAll(filepath.Dir(unitPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(unitPath, []byte(""), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	writeTestFile(t, unitPath, "[Service]\nExecStart=/usr/bin/minio server --address 127.0.0.1:9002 --console-address 127.0.0.1:9003 /tmp/minio\n")
 
 	var out bytes.Buffer
 	storageListCmd.SetOut(&out)
@@ -195,8 +203,12 @@ func TestStorageListShowsMinIOInstances(t *testing.T) {
 	body := out.String()
 	for _, want := range []string{
 		"ENGINE",
+		"API_PORT",
+		"CONSOLE_PORT",
 		"minio",
 		version,
+		"9002",
+		"9003",
 		services.MinIOUnitName(version),
 		services.MinIODataDir(version),
 	} {

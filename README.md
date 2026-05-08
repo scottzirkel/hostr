@@ -89,11 +89,12 @@ routa php -v                    # run selected routa PHP for this directory/site
 routa composer install          # run Composer using selected routa PHP
 routa which-php                 # print selected routa PHP binary
 routa php list / use / rm
+routa php ini show [8.4] / path [8.4] / edit [8.4]
 routa php ini set 8.4 memory_limit 512M
 routa php ini set 8.4 upload_max_filesize 128M
 routa php ini set 8.4 post_max_size 128M
-routa php ext list 8.4
-routa php xdebug on 8.4 / off 8.4 / status 8.4
+routa php ext list [8.4]
+routa php xdebug on [8.4] / off [8.4] / status [8.4]
 routa track / untrack / ignore / unignore / link / unlink / alias / unalias / isolate / secure
 routa proxy <name> <port>       # reverse-proxy <name>.test → 127.0.0.1:<port>
 routa dev [name]                # run a detected dev server and proxy it
@@ -162,10 +163,14 @@ framework apps while still validating timestamps for local development.
 routa php ini set 8.4 memory_limit 512M
 routa php ini set 8.4 upload_max_filesize 128M
 routa php ini set 8.4 post_max_size 128M
-routa php ini show 8.4
-routa php ini edit 8.4
+routa php ini show
+routa php ini edit
 routa php ini unset 8.4 memory_limit
 ```
+
+`show`, `path`, and `edit` infer the current/default PHP version when no
+version is provided. `set` and `unset` keep the version explicit so key/value
+arguments stay unambiguous.
 
 ## Per-site environment
 
@@ -189,8 +194,12 @@ are compiled into the PHP binary, so routa lists what is available rather than
 installing shared modules at runtime:
 
 ```bash
-routa php ext list 8.4
+routa php ext list
 ```
+
+When no version is provided, routa uses the PHP version selected for the current
+directory or the default PHP version. Pass an explicit version, such as
+`routa php ext list 8.4`, to inspect a different installation.
 
 ## Xdebug
 
@@ -199,16 +208,19 @@ install and can toggle per-version debugging settings later for both CLI proxy
 commands and PHP-FPM:
 
 ```bash
-routa php xdebug on 8.4
-routa php xdebug status 8.4
-routa php xdebug off 8.4
+routa php xdebug on
+routa php xdebug status
+routa php xdebug off
 ```
 
 `on` defaults to Xdebug 3 settings: `xdebug.mode=debug,develop`,
 `xdebug.start_with_request=yes`, `xdebug.client_host=127.0.0.1`, and
-`xdebug.client_port=9003`. Use `routa php ext list <version>` to confirm the
-installed build includes Xdebug. The current upstream bulk profile usually does
-not include Xdebug; routa will skip Xdebug ini defaults for those builds.
+`xdebug.client_port=9003`. When no version is provided, routa uses the PHP
+version selected for the current directory or the default PHP version. Pass an
+explicit version, such as `routa php xdebug on 8.4`, to manage a different
+installation. Use `routa php ext list [version]` to confirm the installed build
+includes Xdebug. The current upstream bulk profile usually does not include
+Xdebug; routa will skip Xdebug ini defaults for those builds.
 
 ## Custom docroot
 
@@ -455,6 +467,9 @@ routa storage list
 ```
 
 MinIO data is stored under `~/.local/share/routa/services/minio/<version>/`.
+`routa storage status` prints the configured API and console listen addresses
+before systemd status output, and `routa storage list` includes the configured
+ports for each installed MinIO version.
 The generated environment file sets local development credentials
 `MINIO_ROOT_USER=routa` and `MINIO_ROOT_PASSWORD=routa-local-dev`.
 

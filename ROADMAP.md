@@ -11,6 +11,17 @@ priority, not commitment.
   now request a 396-day lifetime, backed by a 730-day local intermediate CA.
 - **Mailpit proxy port detection** — `routa mail proxy` now points at the
   configured Mailpit web port instead of assuming the default `8025`.
+- **Current-site Xdebug workflow** — `routa php xdebug on/off/status` can now
+  infer the PHP version from the current site or default PHP when no version is
+  provided.
+- **Current-site extension inspection** — `routa php ext list` can now infer
+  the PHP version from the current site or default PHP when no version is
+  provided.
+- **Current-site PHP ini inspection** — `routa php ini show/path/edit` can now
+  infer the PHP version from the current site or default PHP when no version is
+  provided.
+- **MinIO status/list port output** — `routa storage status` and
+  `routa storage list` now show configured MinIO API and console ports.
 
 ## Released
 

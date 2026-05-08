@@ -85,8 +85,15 @@ var storageStatusCmd = &cobra.Command{
 	Use:   "status minio <version>",
 	Short: "Show routa MinIO systemd status",
 	Args:  storageMinIOVersionArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
-		return systemd.RunSystemctl("--user", "status", services.MinIOUnitName(args[1]))
+	RunE: func(cmd *cobra.Command, args []string) error {
+		version := args[1]
+		apiPort, consolePort, err := minIOConfiguredPorts(version)
+		if err != nil {
+			return err
+		}
+		unit := services.MinIOUnitName(version)
+		fmt.Fprintln(cmd.OutOrStdout(), minIOStatusHeader(unit, apiPort, consolePort))
+		return systemd.RunSystemctl("--user", "status", unit)
 	},
 }
 
@@ -127,9 +134,13 @@ var storageListCmd = &cobra.Command{
 			return nil
 		}
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "ENGINE\tVERSION\tUNIT\tDATA_DIR")
+		fmt.Fprintln(w, "ENGINE\tVERSION\tAPI_PORT\tCONSOLE_PORT\tUNIT\tDATA_DIR")
 		for _, instance := range instances {
-			fmt.Fprintf(w, "minio\t%s\t%s\t%s\n", instance.Version, instance.Unit, instance.DataDir)
+			apiPort, consolePort, err := minIOConfiguredPorts(instance.Version)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(w, "minio\t%s\t%s\t%s\t%s\t%s\n", instance.Version, apiPort, consolePort, instance.Unit, instance.DataDir)
 		}
 		return w.Flush()
 	},
@@ -209,6 +220,10 @@ func minIOConfiguredPorts(version string) (string, string, error) {
 	apiPort = routaUnitFlagPort(content, "--address", apiPort)
 	consolePort = routaUnitFlagPort(content, "--console-address", consolePort)
 	return apiPort, consolePort, nil
+}
+
+func minIOStatusHeader(unit, apiPort, consolePort string) string {
+	return fmt.Sprintf("%s listens on API %s and console %s", unit, localhostAddr(apiPort), localhostAddr(consolePort))
 }
 
 func init() {
