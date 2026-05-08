@@ -94,6 +94,7 @@ The initial release line was reconstructed from the first commits:
 - `v1.8.1`: PHP public front-controller detection no longer requires `composer.json`, so non-Composer apps with `public/index.php` resolve as PHP sites.
 - `v1.9.0`: compact database list output with configured ports, clearer doctor cutover wording, safer dev-server port parsing, Mailpit/search status listen-address headers, and expanded routing/rendering coverage.
 - `v1.10.0`: current-site PHP Xdebug, extension, and ini inspection workflows; optional service port output polish for Mailpit, search, and storage; stateful service backup guidance; Mailpit tag/plus-address inbox guidance; longer local TLS certificates; and more routing edge coverage.
+- `v1.11.0`: managed Xdebug shared-extension installs for PHP versions, glibc static-php-cli PHP builds, current/default-aware `routa php xdebug install`, FPM php.ini rendering for Zend extensions, and Xdebug artifact publishing workflow.
 
 ## Pending Release Notes
 

@@ -5,16 +5,21 @@ priority, not commitment.
 
 ## Pending release
 
+- None.
+
+## Released
+
+### v1.11.0 — Managed Xdebug-capable PHP installs
+
 - **Xdebug-capable PHP installs** — PHP downloads now use the upstream
   static-php-cli `gnu-bulk` channel so shared extensions can load on glibc
   systems, `routa php install <version>` attempts to install a matching
   Routa-managed `xdebug.so`, and `routa php xdebug install/on/off/status`
   can add, toggle, and inspect Xdebug later without reinstalling PHP.
-- **Xdebug artifact pipeline** — added a manual GitHub Actions workflow and
-  build script for publishing per-PHP-version Linux `amd64`/`arm64` Xdebug
-  shared-extension archives to the `php-xdebug` release used by the installer.
-
-## Released
+- **Xdebug artifact pipeline** — added and verified a GitHub Actions workflow
+  and build script for publishing per-PHP-version Linux `amd64`/`arm64`
+  Xdebug shared-extension archives to the `php-xdebug` release used by the
+  installer.
 
 ### v1.10.0 — PHP workflow and optional service polish
 
