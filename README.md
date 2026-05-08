@@ -366,8 +366,16 @@ routa mail stop
 manager. It writes `routa-mailpit.service`, stores Mailpit's persistent
 database under `~/.local/share/routa/services/mailpit/`, binds the web UI to
 `127.0.0.1:8025`, and binds SMTP to `127.0.0.1:1025` by default. `routa mail
-proxy` reads the configured web UI port, so custom `--port` values are reflected
-in the generated `.test` proxy.
+start`, `restart`, and `status` print both configured listen addresses. `routa
+mail proxy` reads the configured web UI port, so custom `--port` values are
+reflected in the generated `.test` proxy.
+
+For project-specific inboxes, use Mailpit tags. Mailpit applies tags from the
+`X-Tags` message header and from plus-addresses such as
+`app+checkout@example.test`; those tags can be filtered in the Mailpit UI. A
+named proxy such as `routa mail proxy checkout-mail` gives the filtered Mailpit
+workflow a stable `.test` URL while keeping a single Mailpit service and SMTP
+port.
 
 ## Databases
 
@@ -452,7 +460,9 @@ routa search list
 
 Search services expect a matching system binary. Data is stored under
 `~/.local/share/routa/services/meilisearch/<version>/` or
-`~/.local/share/routa/services/typesense/<version>/`.
+`~/.local/share/routa/services/typesense/<version>/`. `routa search install`,
+`start`, `status`, and `list` include the configured listen port in their
+output.
 
 ## Object storage
 
@@ -467,11 +477,38 @@ routa storage list
 ```
 
 MinIO data is stored under `~/.local/share/routa/services/minio/<version>/`.
-`routa storage status` prints the configured API and console listen addresses
-before systemd status output, and `routa storage list` includes the configured
-ports for each installed MinIO version.
+`routa storage install`, `start`, and `status` print the configured API and
+console listen addresses, and `routa storage list` includes the configured ports
+for each installed MinIO version.
 The generated environment file sets local development credentials
 `MINIO_ROOT_USER=routa` and `MINIO_ROOT_PASSWORD=routa-local-dev`.
+
+## Backing up stateful services
+
+Stateful optional services keep data under `~/.local/share/routa/services/`.
+Configuration needed to recreate ports, credentials, and service settings lives
+under `~/.config/routa/services/` and
+`~/.config/systemd/user/routa-*.service`.
+
+For file-level backups, stop the target service first, then copy its data and
+matching config directories. Use `routa db list`, `routa search list`, and
+`routa storage list` to confirm installed versions, instance names, ports, and
+data paths before archiving. For live database exports, prefer the engine's
+native dump tools (`mysqldump`, `mariadb-dump`, or `pg_dump`) against the
+configured localhost port instead of copying a running data directory.
+
+Important paths:
+
+| Service | Data | Config |
+|---|---|---|
+| Redis | `~/.local/share/routa/services/redis/` | `~/.config/routa/services/redis/` |
+| Mailpit | `~/.local/share/routa/services/mailpit/` | systemd unit only |
+| MariaDB | `~/.local/share/routa/services/mariadb/<version>/[instances/<name>/]` | `~/.config/routa/services/mariadb/<version>/[instances/<name>/]` |
+| MySQL | `~/.local/share/routa/services/mysql/<version>/[instances/<name>/]` | `~/.config/routa/services/mysql/<version>/[instances/<name>/]` |
+| Postgres | `~/.local/share/routa/services/postgres/<version>/[instances/<name>/]` | `~/.config/routa/services/postgres/<version>/[instances/<name>/]` |
+| Meilisearch | `~/.local/share/routa/services/meilisearch/<version>/` | systemd unit only |
+| Typesense | `~/.local/share/routa/services/typesense/<version>/` | systemd unit only |
+| MinIO | `~/.local/share/routa/services/minio/<version>/` | `~/.config/routa/services/minio/<version>/` |
 
 ## TUI
 

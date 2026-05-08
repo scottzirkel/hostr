@@ -34,7 +34,7 @@ var storageInstallCmd = &cobra.Command{
 		if err := services.EnsureMinIOWithPorts(version, port, consolePort); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", services.MinIOUnitName(version))
+		fmt.Fprintf(cmd.OutOrStdout(), "installed %s on API %s and console %s\n", services.MinIOUnitName(version), localhostAddr(port), localhostAddr(consolePort))
 		return nil
 	},
 }
@@ -61,7 +61,7 @@ var storageStartCmd = &cobra.Command{
 		if err := systemd.EnableNow(unit); err != nil {
 			return fmt.Errorf("start %s: %w", unit, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "started %s\n", unit)
+		fmt.Fprintf(cmd.OutOrStdout(), "started %s on API %s and console %s\n", unit, localhostAddr(port), localhostAddr(consolePort))
 		return nil
 	},
 }

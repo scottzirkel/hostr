@@ -93,6 +93,8 @@ func TestSearchListShowsInstances(t *testing.T) {
 	if err := os.MkdirAll(services.TypesenseDataDir("28"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	writeTestFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.MeilisearchUnitName("1.12")), "[Service]\nExecStart=/usr/bin/meilisearch --http-addr 127.0.0.1:7701 --db-path /tmp/meili\n")
+	writeTestFile(t, filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "systemd", "user", services.TypesenseUnitName("28")), "[Service]\nExecStart=/usr/bin/typesense-server --api-port 8109 --data-dir /tmp/typesense\n")
 
 	var out bytes.Buffer
 	searchListCmd.SetOut(&out)
@@ -109,11 +111,14 @@ func TestSearchListShowsInstances(t *testing.T) {
 	body := out.String()
 	for _, want := range []string{
 		"ENGINE",
+		"PORT",
 		"meilisearch",
 		"1.12",
+		"7701",
 		services.MeilisearchDataDir("1.12"),
 		"typesense",
 		"28",
+		"8109",
 		services.TypesenseDataDir("28"),
 	} {
 		if !strings.Contains(body, want) {

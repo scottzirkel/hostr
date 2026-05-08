@@ -88,18 +88,10 @@ The initial release line was reconstructed from the first commits:
 - `v1.8.0`: optional service diagnostics, Linux release artifacts, AUR metadata, PHP Xdebug toggles, optional service proxy helpers, PHP-FPM restart aliases, retrying PHP downloads, and safer PHP-FPM env rendering.
 - `v1.8.1`: PHP public front-controller detection no longer requires `composer.json`, so non-Composer apps with `public/index.php` resolve as PHP sites.
 - `v1.9.0`: compact database list output with configured ports, clearer doctor cutover wording, safer dev-server port parsing, Mailpit/search status listen-address headers, and expanded routing/rendering coverage.
+- `v1.10.0`: current-site PHP Xdebug, extension, and ini inspection workflows; optional service port output polish for Mailpit, search, and storage; stateful service backup guidance; Mailpit tag/plus-address inbox guidance; longer local TLS certificates; and more routing edge coverage.
 
 ## Pending Release Notes
 
 ### Next
 
-- `routa mail proxy` now reads the configured Mailpit web UI port before
-  registering the `.test` proxy.
-- `routa php xdebug on/off/status` can now infer the current PHP version when
-  no explicit version argument is provided.
-- `routa php ext list` can now infer the current PHP version when no explicit
-  version argument is provided.
-- `routa php ini show/path/edit` can now infer the current PHP version when no
-  explicit version argument is provided.
-- `routa storage status` and `routa storage list` now show configured MinIO API
-  and console ports.
+- None.

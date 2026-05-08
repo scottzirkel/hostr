@@ -32,7 +32,7 @@ var searchInstallCmd = &cobra.Command{
 		if err := ensureSearchService(engine, version, port); err != nil {
 			return err
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "installed %s\n", searchUnitName(engine, version))
+		fmt.Fprintf(cmd.OutOrStdout(), "installed %s on %s\n", searchUnitName(engine, version), localhostAddr(port))
 		return nil
 	},
 }
@@ -57,7 +57,7 @@ var searchStartCmd = &cobra.Command{
 		if err := systemd.EnableNow(unit); err != nil {
 			return fmt.Errorf("start %s: %w", unit, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "started %s\n", unit)
+		fmt.Fprintf(cmd.OutOrStdout(), "started %s on %s\n", unit, localhostAddr(port))
 		return nil
 	},
 }
@@ -134,12 +134,20 @@ var searchListCmd = &cobra.Command{
 			return nil
 		}
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
-		fmt.Fprintln(w, "ENGINE\tVERSION\tUNIT\tDATA_DIR")
+		fmt.Fprintln(w, "ENGINE\tVERSION\tPORT\tUNIT\tDATA_DIR")
 		for _, instance := range meiliInstances {
-			fmt.Fprintf(w, "meilisearch\t%s\t%s\t%s\n", instance.Version, instance.Unit, instance.DataDir)
+			port, err := searchConfiguredPort("meilisearch", instance.Version)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(w, "meilisearch\t%s\t%s\t%s\t%s\n", instance.Version, port, instance.Unit, instance.DataDir)
 		}
 		for _, instance := range typesenseInstances {
-			fmt.Fprintf(w, "typesense\t%s\t%s\t%s\n", instance.Version, instance.Unit, instance.DataDir)
+			port, err := searchConfiguredPort("typesense", instance.Version)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(w, "typesense\t%s\t%s\t%s\t%s\n", instance.Version, port, instance.Unit, instance.DataDir)
 		}
 		return w.Flush()
 	},

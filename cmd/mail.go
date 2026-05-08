@@ -40,7 +40,7 @@ var mailStartCmd = &cobra.Command{
 		if err := systemd.EnableNow(services.MailpitUnitName); err != nil {
 			return fmt.Errorf("start %s: %w", services.MailpitUnitName, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "started %s\n", services.MailpitUnitName)
+		fmt.Fprintln(cmd.OutOrStdout(), mailpitStartedMessage(webPort, smtpPort))
 		return nil
 	},
 }
@@ -72,7 +72,7 @@ var mailRestartCmd = &cobra.Command{
 		if err := systemd.RunSystemctl("--user", "restart", services.MailpitUnitName); err != nil {
 			return fmt.Errorf("restart %s: %w", services.MailpitUnitName, err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "restarted %s\n", services.MailpitUnitName)
+		fmt.Fprintln(cmd.OutOrStdout(), mailpitRestartedMessage(webPort, smtpPort))
 		return nil
 	},
 }
@@ -168,6 +168,14 @@ func mailpitConfiguredPorts() (string, string, error) {
 
 func mailpitStatusHeader(webPort, smtpPort string) string {
 	return fmt.Sprintf("%s listens on web %s and SMTP %s", services.MailpitUnitName, localhostAddr(webPort), localhostAddr(smtpPort))
+}
+
+func mailpitStartedMessage(webPort, smtpPort string) string {
+	return fmt.Sprintf("started %s on web %s and SMTP %s", services.MailpitUnitName, localhostAddr(webPort), localhostAddr(smtpPort))
+}
+
+func mailpitRestartedMessage(webPort, smtpPort string) string {
+	return fmt.Sprintf("restarted %s on web %s and SMTP %s", services.MailpitUnitName, localhostAddr(webPort), localhostAddr(smtpPort))
 }
 
 func init() {

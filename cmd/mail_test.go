@@ -85,3 +85,20 @@ func TestMailpitStatusHeaderIncludesWebAndSMTPAddrs(t *testing.T) {
 		}
 	}
 }
+
+func TestMailpitLifecycleMessagesIncludeWebAndSMTPAddrs(t *testing.T) {
+	for _, got := range []string{
+		mailpitStartedMessage("8026", "1026"),
+		mailpitRestartedMessage("8026", "1026"),
+	} {
+		for _, want := range []string{
+			services.MailpitUnitName,
+			"web 127.0.0.1:8026",
+			"SMTP 127.0.0.1:1026",
+		} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("message missing %q: %s", want, got)
+			}
+		}
+	}
+}

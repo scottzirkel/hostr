@@ -5,25 +5,27 @@ priority, not commitment.
 
 ## Pending release
 
-- **More routing edge coverage** — added focused coverage for dotted tracked,
-  linked, and aliased site names, plus cleaned link-path matching.
-- **Longer local TLS certificates** — Caddy-issued `.test` leaf certificates
-  now request a 396-day lifetime, backed by a 730-day local intermediate CA.
-- **Mailpit proxy port detection** — `routa mail proxy` now points at the
-  configured Mailpit web port instead of assuming the default `8025`.
-- **Current-site Xdebug workflow** — `routa php xdebug on/off/status` can now
-  infer the PHP version from the current site or default PHP when no version is
-  provided.
-- **Current-site extension inspection** — `routa php ext list` can now infer
-  the PHP version from the current site or default PHP when no version is
-  provided.
-- **Current-site PHP ini inspection** — `routa php ini show/path/edit` can now
-  infer the PHP version from the current site or default PHP when no version is
-  provided.
-- **MinIO status/list port output** — `routa storage status` and
-  `routa storage list` now show configured MinIO API and console ports.
+- None.
 
 ## Released
+
+### v1.10.0 — PHP workflow and optional service polish
+
+- **Current-site PHP tooling** — `routa php xdebug on/off/status`,
+  `routa php ext list`, and `routa php ini show/path/edit` can now infer the
+  PHP version from the current site or default PHP when no version is provided.
+- **Optional service port output** — Redis, Mailpit, databases, search, and
+  storage expose configured ports in the relevant lifecycle, status, or list
+  output, including MinIO API/console ports and Mailpit web/SMTP ports.
+- **Mailpit proxy polish** — `routa mail proxy` now points at the configured
+  Mailpit web port instead of assuming the default `8025`.
+- **Stateful service guidance** — README now documents routa-owned service data
+  and config paths, safer live database export options, and Mailpit tag and
+  plus-address workflows for project-specific inboxes.
+- **Routing and TLS polish** — added focused coverage for dotted tracked,
+  linked, and aliased site names, cleaned link-path matching, and configured
+  Caddy-issued `.test` leaf certificates for a 396-day lifetime backed by a
+  730-day local intermediate CA.
 
 ### v1.9.0 — optional service list/status polish
 
@@ -205,13 +207,6 @@ trying to become a full-stack desktop dev suite.
 - **Distribution**
   - Publish and maintain the AUR package (`routa-bin`) after the first binary
     release artifacts are attached.
-- **Optional service polish**
-  - Add remaining proxy helpers where they make sense, such as named Mailpit
-    inboxes.
-  - Audit remaining lifecycle output and list/status formatting gaps across
-    Redis, Mailpit, search, and storage after the database list and
-    Mailpit/search status polish in `v1.9.0`.
-  - Backup/export guidance for stateful service data.
 - **PHP extension variants** — `routa php ext list <ver>` exists today for the
   compiled-in upstream bulk profile. Add finer-grained variant selection or
   custom static-php-cli builds for users who need a different extension set.
@@ -222,10 +217,11 @@ trying to become a full-stack desktop dev suite.
 
 ## Next logical steps
 
-1. **PHP debugging workflow** — after packaging/service polish, tackle xdebug
-   and extension variants as a focused PHP developer-experience milestone.
-2. **Optional service polish** — keep smoothing remaining lifecycle output and
-   proxy-helper gaps, especially named Mailpit inboxes.
+1. **PHP variant decision** — choose whether routa should consume an upstream
+   xdebug-capable static-php-cli channel, build custom variants, or keep
+   documenting Xdebug as available only when compiled into the installed build.
+2. **Release pending work** — cut the next release so GitHub artifacts are
+   attached, then update/publish the AUR package from those release artifacts.
 
 ## Backlog / ideas
 
