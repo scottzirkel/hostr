@@ -12,11 +12,9 @@ fi
 
 case "$(uname -m)" in
 	x86_64)
-		spc_arch="x86_64"
 		asset_arch="amd64"
 		;;
 	aarch64 | arm64)
-		spc_arch="aarch64"
 		asset_arch="arm64"
 		;;
 	*)
@@ -27,36 +25,24 @@ esac
 
 dist="dist"
 work="${RUNNER_TEMP:-/tmp}/routa-php-xdebug-${asset_arch}"
-spc_target="${SPC_TARGET:-native-native-gnu.2.17}"
 base_extensions="${ROUTA_PHP_XDEBUG_BASE_EXTENSIONS:-bcmath,zlib}"
+spc_repo="${ROUTA_PHP_XDEBUG_SPC_REPO:-https://github.com/crazywhalecc/static-php-cli.git}"
 
 mkdir -p "$dist"
 rm -rf "$work"
 mkdir -p "$work"
 
-curl -fsSL \
-	-o "$work/spc.tgz" \
-	"https://dl.static-php.dev/static-php-cli/spc-bin/nightly/spc-linux-${spc_arch}.tar.gz"
-tar -xzf "$work/spc.tgz" -C "$work"
-spc="$(find "$work" -maxdepth 2 -type f -name spc | head -n 1)"
-if [[ -z "$spc" ]]; then
-	echo "spc binary not found in archive" >&2
-	exit 1
-fi
-chmod +x "$spc"
-
 for version in "${versions[@]}"; do
 	build_dir="$work/php-$version"
 	rm -rf "$build_dir"
-	mkdir -p "$build_dir"
-	cp "$spc" "$build_dir/spc"
+	git clone --depth=1 "$spc_repo" "$build_dir"
+	chmod +x "$build_dir/bin/spc-gnu-docker"
 
 	echo "building Xdebug for PHP $version linux/$asset_arch"
 	(
 		cd "$build_dir"
-		export SPC_TARGET="$spc_target"
-		./spc download --with-php="$version" --for-extensions="${base_extensions},xdebug" --prefer-pre-built --retry=2
-		./spc build "$base_extensions" --build-cli --build-shared=xdebug --debug
+		bin/spc-gnu-docker download --with-php="$version" --for-extensions="${base_extensions},xdebug" --prefer-pre-built --retry=2
+		bin/spc-gnu-docker build "$base_extensions" --build-cli --build-shared=xdebug --debug
 		test -f buildroot/modules/xdebug.so
 		tar -C buildroot/modules -czf "$repo/$dist/routa_php_xdebug_${version}_linux_${asset_arch}.tar.gz" xdebug.so
 	)
