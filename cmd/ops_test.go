@@ -345,3 +345,67 @@ func TestStatusReportsMissingCustomDocroot(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusCommandHasListAlias(t *testing.T) {
+	for _, alias := range statusCmd.Aliases {
+		if alias == "list" {
+			return
+		}
+	}
+	t.Fatalf("status aliases = %#v, want list", statusCmd.Aliases)
+}
+
+func TestStatusJSONReportsResolvedSites(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	root := t.TempDir()
+	parked := filepath.Join(root, "parked")
+	parkedApp := filepath.Join(parked, "parked-app")
+	linkedApp := filepath.Join(root, "linked-app")
+	writeFile(t, filepath.Join(parkedApp, "index.html"), "ok")
+	writeFile(t, filepath.Join(linkedApp, "public", "index.html"), "ok")
+
+	if err := site.Save(&site.State{
+		Parked: []string{parked},
+		Links: []site.Link{
+			{Name: "linked", Path: linkedApp, Root: "public", Secure: false, PHP: "8.4"},
+		},
+		Aliases: []site.Alias{{Name: "linked-alias", Target: "linked"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	statusJSON = true
+	statusCmd.SetOut(&out)
+	statusCmd.SetErr(&bytes.Buffer{})
+	t.Cleanup(func() {
+		statusJSON = false
+		statusCmd.SetOut(os.Stdout)
+		statusCmd.SetErr(os.Stderr)
+	})
+
+	if err := statusCmd.RunE(statusCmd, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	var got []statusSite
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	byName := map[string]statusSite{}
+	for _, s := range got {
+		byName[s.Name] = s
+	}
+
+	if got := byName["parked-app"]; got.Source != "parked" || got.URL != "https://parked-app.test" || got.Kind != site.KindStatic {
+		t.Fatalf("parked-app = %#v", got)
+	}
+	if got := byName["linked"]; got.Source != "linked" || got.URL != "http://linked.test" || got.Docroot != filepath.Join(linkedApp, "public") || !got.PHPMissing {
+		t.Fatalf("linked = %#v", got)
+	}
+	if got := byName["linked-alias"]; got.Source != "alias" || got.AliasOf != "linked" || got.URL != "http://linked-alias.test" {
+		t.Fatalf("linked-alias = %#v", got)
+	}
+}

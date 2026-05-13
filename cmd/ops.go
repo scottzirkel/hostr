@@ -161,20 +161,41 @@ func phpSpecFromUnit(unit string) (string, bool) {
 
 // --- status ---------------------------------------------------------------
 
+var statusJSON bool
+
+type statusSite struct {
+	Name       string    `json:"name"`
+	URL        string    `json:"url"`
+	Source     string    `json:"source"`
+	Kind       site.Kind `json:"kind"`
+	PHP        string    `json:"php"`
+	PHPMissing bool      `json:"php_missing"`
+	Secure     bool      `json:"secure"`
+	Path       string    `json:"path"`
+	Docroot    string    `json:"docroot"`
+	Target     string    `json:"target"`
+	AliasOf    string    `json:"alias_of"`
+	EnvFile    string    `json:"env_file,omitempty"`
+}
+
 var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show all configured sites and their resolved settings",
+	Use:     "status",
+	Aliases: []string{"list"},
+	Short:   "Show all configured sites and their resolved settings",
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		s, err := site.Load()
 		if err != nil {
 			return err
 		}
 		sites := s.Resolve()
+		installed := installedPHPSet()
+		if statusJSON {
+			return renderStatusJSON(cmd, s, sites, installed)
+		}
 		if len(sites) == 0 {
 			fmt.Println("no sites configured. Run `routa track <dir>` or `routa link [name]`.")
 			return nil
 		}
-		installed := installedPHPSet()
 
 		w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 2, 2, ' ', 0)
 		fmt.Fprintln(w, "NAME\tKIND\tPHP\tSECURE\tDOCROOT")
@@ -201,6 +222,49 @@ var statusCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+func renderStatusJSON(cmd *cobra.Command, s *site.State, sites []site.Resolved, installed map[string]bool) error {
+	out := make([]statusSite, 0, len(sites))
+	for _, r := range sites {
+		out = append(out, statusSite{
+			Name:       r.Name,
+			URL:        resolvedSiteURL(r),
+			Source:     resolvedSiteSource(s, r),
+			Kind:       r.Kind,
+			PHP:        r.PHP,
+			PHPMissing: r.PHP != "" && !installed[r.PHP],
+			Secure:     r.Secure,
+			Path:       r.Path,
+			Docroot:    r.Docroot,
+			Target:     r.Target,
+			AliasOf:    r.AliasOf,
+			EnvFile:    r.EnvFile,
+		})
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+func resolvedSiteSource(s *site.State, r site.Resolved) string {
+	if r.AliasOf != "" {
+		return "alias"
+	}
+	for _, l := range s.Links {
+		if l.Name == r.Name {
+			return "linked"
+		}
+	}
+	return "parked"
+}
+
+func resolvedSiteURL(r site.Resolved) string {
+	scheme := "https"
+	if !r.Secure {
+		scheme = "http"
+	}
+	return fmt.Sprintf("%s://%s.test", scheme, r.Name)
 }
 
 func installedPHPSet() map[string]bool {
@@ -1066,6 +1130,7 @@ func init() {
 	logsCmd.Flags().BoolVar(&logsPHP, "no-php", false, "exclude php-fpm error log")
 	doctorCmd.Flags().BoolVar(&doctorProbe, "probe", false, "also issue a HEAD against every site")
 	doctorCmd.Flags().BoolVar(&doctorJSON, "json", false, "emit machine-readable JSON")
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "emit machine-readable JSON")
 	tuiRenderCmd.Flags().IntVar(&tuiRenderWidth, "width", 120, "terminal width to render")
 	rootCmd.AddCommand(reloadCmd, restartCmd, statusCmd, openCmd, logsCmd, doctorCmd, tuiCmd, tuiRenderCmd)
 }

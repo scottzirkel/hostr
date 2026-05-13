@@ -78,6 +78,8 @@ routa cutover --rollback        # reverse it
 ```
 routa                           # interactive dashboard (see TUI below)
 routa status                    # flat table — all sites + resolved settings
+routa status --json             # agent-friendly JSON list of resolved sites
+routa list                      # alias for routa status
 routa open [name]               # xdg-open https://<name>.test (port-aware)
 routa logs <name>               # tail Caddy access + PHP errors for one site
 routa doctor [--probe] [--json] # health check; --probe also HEADs every site
